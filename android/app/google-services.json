@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "849714080580",
+    "project_id": "com-runpro9ja",
+    "storage_bucket": "com-runpro9ja.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:849714080580:android:a38f8794db4256e2828511",
+        "android_client_info": {
+          "package_name": "com.example.runpro_9ja"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCatiqaeF8xvuM2sFhQiHklyqzjxQzWBRU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
