@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:runpro_9ja/screens/payment_screens/payment_screen.dart';
+import 'package:runpro_9ja/services/customer_services.dart';
+import 'package:runpro_9ja/models/customer_models.dart';
+import '../../auth/Auth_services/auth_service.dart';
+import '../../models/agent_model.dart';
+import '../../utils/service_mapper.dart';
+import '../agents_screen/available_agent_screen.dart';
+import 'laundry_waiting_screen.dart';
 
-
-
-class LaundryServices extends StatelessWidget {
-  const LaundryServices({super.key});
+class CleaningServices extends StatelessWidget {
+  const CleaningServices({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Cleaning Service',
+      title: 'Cleaning Services',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -23,36 +28,58 @@ class LaundryServices extends StatelessWidget {
 }
 
 //////////////////////////////
-// 1. Cleaning Service Screen
+// 1. Main Cleaning Service Screen
 //////////////////////////////
 class CleaningServiceScreen extends StatelessWidget {
   const CleaningServiceScreen({super.key});
 
+  final List<Map<String, String>> services = const [
+    {
+      "title": "Home Cleaning",
+      "description": "Professional home cleaning services",
+    },
+    {
+      "title": "Laundry Service",
+      "description": "Professional laundry and dry cleaning",
+    }
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final services = ["Home Cleaning", "Laundry Service"];
-
     return Scaffold(
-      appBar: AppBar(leading: const Icon(Icons.arrow_back),
-        title: const Text("Cleaning service"),),
+      appBar: AppBar(
+        leading: BackButton(),
+        title: const Text("Cleaning Services"),
+      ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: services.length,
         itemBuilder: (context, index) {
+          final service = services[index];
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
             child: ListTile(
-              title: Text(services[index]),
+              leading: Icon(
+                  service["title"] == "Home Cleaning"
+                      ? Icons.cleaning_services
+                      : Icons.local_laundry_service,
+                  size: 40,
+                  color: const Color(0xFF1B5E20)
+              ),
+              title: Text(service["title"]!),
+              subtitle: Text(service["description"]!),
+              trailing: const Icon(Icons.arrow_forward_ios),
               onTap: () {
-                if (services[index] == "Home Cleaning") {
+                if (service["title"] == "Home Cleaning") {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => const HomeCleaningScreen()),
+                    MaterialPageRoute(builder: (_) => const HomeCleaningScreen()),
                   );
-                }
-                if(services[index] == "Laundry Service"){
-                  Navigator.push(context, MaterialPageRoute(builder: (_)=> const Laundry()),);
+                } else if (service["title"] == "Laundry Service") {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LaundryServiceHome()),
+                  );
                 }
               },
             ),
@@ -64,8 +91,1428 @@ class CleaningServiceScreen extends StatelessWidget {
 }
 
 //////////////////////////////
-// 2. Home Cleaning Screen
+// LAUNDRY SERVICE FLOW - COMPLETE IMPLEMENTATION
 //////////////////////////////
+class LaundryServiceHome extends StatelessWidget {
+  const LaundryServiceHome({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text("Laundry Service"),
+      ),
+      body: const LaundrySelectServicesScreen(),
+    );
+  }
+}
+
+// ------------------ SCREEN 1: Laundry Service Selection ------------------
+class LaundrySelectServicesScreen extends StatefulWidget {
+  const LaundrySelectServicesScreen({super.key});
+
+  @override
+  State<LaundrySelectServicesScreen> createState() => _LaundrySelectServicesScreenState();
+}
+
+class _LaundrySelectServicesScreenState extends State<LaundrySelectServicesScreen> {
+  final List<Map<String, dynamic>> services = const [
+    {
+      "title": "Hand wash",
+      "icon": Icons.wash,
+      "description": "Gentle hand washing for delicate fabrics",
+      "basePrice": 1500,
+      "serviceCategory": "laundry_hand_wash"
+    },
+    {
+      "title": "Washing machine wash",
+      "icon": Icons.local_laundry_service,
+      "description": "Machine washing for regular clothes",
+      "basePrice": 1000,
+      "serviceCategory": "laundry_machine_wash"
+    },
+    {
+      "title": "Iron only",
+      "icon": Icons.iron,
+      "description": "Professional ironing service",
+      "basePrice": 800,
+      "serviceCategory": "laundry_ironing"
+    },
+    {
+      "title": "Wash, dry, and fold",
+      "icon": Icons.local_laundry_service_outlined,
+      "description": "Complete service: wash, dry and neatly folded",
+      "basePrice": 2000,
+      "serviceCategory": "laundry_wash_dry_fold"
+    },
+    {
+      "title": "Curtain, sheets & bulk items",
+      "icon": Icons.inventory,
+      "description": "Special handling for large items",
+      "basePrice": 3000,
+      "serviceCategory": "laundry_bulk_items"
+    },
+  ];
+
+  Map<String, int> selectedServices = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            "Choose your laundry service",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: services.length,
+            itemBuilder: (context, index) {
+              final service = services[index];
+              final isSelected = selectedServices.containsKey(service["title"]);
+
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                color: isSelected ? const Color(0xFF1B5E20).withOpacity(0.1) : null,
+                child: ListTile(
+                  leading: Icon(service["icon"] as IconData, size: 40, color: const Color(0xFF1B5E20)),
+                  title: Text(
+                    service["title"],
+                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+                  ),
+                  subtitle: Text(service["description"]),
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "₦${service["basePrice"]}",
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                      ),
+                      const Text("base", style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (_) => LaundryCategoriesSheet(
+                        serviceType: service["title"],
+                        basePrice: service["basePrice"],
+                        serviceCategory: service["serviceCategory"],
+                        onServiceAdded: (itemCount, totalPrice) {
+                          setState(() {
+                            selectedServices[service["title"]] = totalPrice;
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        if (selectedServices.isNotEmpty) _buildSelectedServicesSummary(),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: selectedServices.isNotEmpty ? () {
+                _proceedToDryCleaning();
+              } : null,
+              child: const Text(
+                "Continue to Dry Cleaning",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildSelectedServicesSummary() {
+    final totalAmount = selectedServices.values.fold(0, (sum, price) => sum + price);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Selected Services:",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          ...selectedServices.entries.map((entry) =>
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(entry.key),
+                  Text("₦${entry.value}"),
+                ],
+              )
+          ),
+          const Divider(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Total:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("₦$totalAmount", style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _proceedToDryCleaning() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => LaundryDryCleaningScreen(
+        selectedServices: selectedServices,
+      )),
+    );
+  }
+}
+
+// ------------------ Laundry Categories Bottom Sheet ------------------
+class LaundryCategoriesSheet extends StatefulWidget {
+  final String serviceType;
+  final int basePrice;
+  final String serviceCategory;
+  final Function(int itemCount, int totalPrice) onServiceAdded;
+
+  const LaundryCategoriesSheet({
+    super.key,
+    required this.serviceType,
+    required this.basePrice,
+    required this.serviceCategory,
+    required this.onServiceAdded,
+  });
+
+  @override
+  State<LaundryCategoriesSheet> createState() => _LaundryCategoriesSheetState();
+}
+
+class _LaundryCategoriesSheetState extends State<LaundryCategoriesSheet> {
+  final Map<String, int> selectedItems = {};
+
+  final List<Map<String, dynamic>> categories = [
+    {"title": "Shirts", "price": 1000, "icon": Icons.check_box_outline_blank},
+    {"title": "Blouse", "price": 1000, "icon": Icons.check_box_outline_blank},
+    {"title": "T-shirts", "price": 1000, "icon": Icons.check_box_outline_blank},
+    {"title": "Tank tops", "price": 1000, "icon": Icons.check_box_outline_blank},
+    {"title": "Crop tops", "price": 1000, "icon": Icons.check_box_outline_blank},
+    {"title": "Sweaters", "price": 1500, "icon": Icons.check_box_outline_blank},
+    {"title": "Hoodies", "price": 1500, "icon": Icons.check_box_outline_blank},
+    {"title": "Jackets", "price": 2000, "icon": Icons.check_box_outline_blank},
+  ];
+
+  void _updateQuantity(String item, int quantity) {
+    setState(() {
+      if (quantity > 0) {
+        selectedItems[item] = quantity;
+      } else {
+        selectedItems.remove(item);
+      }
+    });
+  }
+
+  int get totalPrice {
+    int itemsTotal = selectedItems.entries.fold<int>(0, (sum, entry) {
+      final item = categories.firstWhere((cat) => cat["title"] == entry.key);
+      return sum + (item["price"] as int) * entry.value;
+    });
+    return widget.basePrice + itemsTotal;
+  }
+
+  int get totalItems {
+    return selectedItems.values.fold(0, (sum, quantity) => sum + quantity);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      height: MediaQuery.of(context).size.height * 0.8,
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "${widget.serviceType} - Categories",
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const Divider(),
+
+          if (selectedItems.isNotEmpty) ...[
+            Card(
+              color: Colors.green[50],
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Selected Items:",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...selectedItems.entries.map((entry) {
+                      final item = categories.firstWhere((cat) => cat["title"] == entry.key);
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("${entry.key} (x${entry.value})"),
+                          Text("₦${(item["price"] as int) * entry.value}"),
+                        ],
+                      );
+                    }),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Service Fee:", style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text("₦${widget.basePrice}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Total:", style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text("₦$totalPrice", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          Expanded(
+            child: ListView.builder(
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final item = categories[index];
+                final quantity = selectedItems[item["title"]] ?? 0;
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  child: ListTile(
+                    leading: Icon(item["icon"] as IconData, color: const Color(0xFF1B5E20)),
+                    title: Text(item["title"]!),
+                    subtitle: Text("₦${item["price"]} per item"),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                          onPressed: quantity > 0 ? () {
+                            _updateQuantity(item["title"], quantity - 1);
+                          } : null,
+                        ),
+                        Text("$quantity", style: const TextStyle(fontSize: 16)),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, color: Color(0xFF1B5E20)),
+                          onPressed: () {
+                            _updateQuantity(item["title"], quantity + 1);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          if (selectedItems.isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B5E20),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: () {
+                  widget.onServiceAdded(totalItems, totalPrice);
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Added ${selectedItems.length} items to ${widget.serviceType}"),
+                      backgroundColor: const Color(0xFF1B5E20),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "Add to Order",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ------------------ SCREEN 2: Laundry Dry Cleaning ------------------
+class LaundryDryCleaningScreen extends StatefulWidget {
+  final Map<String, int> selectedServices;
+
+  const LaundryDryCleaningScreen({
+    super.key,
+    required this.selectedServices,
+  });
+
+  @override
+  State<LaundryDryCleaningScreen> createState() => _LaundryDryCleaningScreenState();
+}
+
+class _LaundryDryCleaningScreenState extends State<LaundryDryCleaningScreen> {
+  final List<Map<String, dynamic>> items = [
+    {"title": "Shirts", "price": 1000, "qty": 0},
+    {"title": "Trousers", "price": 1000, "qty": 0},
+    {"title": "Duvet", "price": 1000, "qty": 0},
+    {"title": "Curtain", "price": 1000, "qty": 0},
+    {"title": "Suits", "price": 2500, "qty": 0},
+    {"title": "Dresses", "price": 1500, "qty": 0},
+  ];
+
+  final TextEditingController specialInstructionsController = TextEditingController();
+
+  int get totalDryCleaningItems {
+    return items.fold<int>(0, (sum, item) => sum + (item["qty"] as int));
+  }
+
+  int get totalDryCleaningAmount {
+    return items.fold<int>(0, (sum, item) => sum + ((item["price"] as int) * (item["qty"] as int)));
+  }
+
+  int get totalLaundryAmount {
+    return widget.selectedServices.values.fold(0, (sum, price) => sum + price);
+  }
+
+  int get totalAmount {
+    return totalLaundryAmount + totalDryCleaningAmount;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Dry Cleaning"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Dry Cleaning Services",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Select from the different kinds of clothes you'd like us to dry clean for you.",
+              style: TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+
+            // Selected Services Summary
+            if (widget.selectedServices.isNotEmpty) ...[
+              Card(
+                color: Colors.green[50],
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Selected Laundry Services:",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      ...widget.selectedServices.entries.map((entry) =>
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(entry.key),
+                              Text("₦${entry.value}"),
+                            ],
+                          )
+                      ),
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("Subtotal:", style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text("₦$totalLaundryAmount", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            Expanded(
+              child: ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    elevation: 2,
+                    child: ListTile(
+                      leading: const Icon(Icons.dry_cleaning, color: Color(0xFF1B5E20)),
+                      title: Text(
+                        items[index]["title"],
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text("₦${items[index]["price"]} per item"),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                if (items[index]["qty"] > 0) {
+                                  items[index]["qty"]--;
+                                }
+                              });
+                            },
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              "${items[index]["qty"]}",
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline, color: Color(0xFF1B5E20)),
+                            onPressed: () {
+                              setState(() {
+                                items[index]["qty"]++;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            const Text(
+              "Special Instructions",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: specialInstructionsController,
+              decoration: const InputDecoration(
+                hintText: "Any special instructions or things we should look out for...",
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // Order Summary
+            Card(
+              color: Colors.green[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    if (totalLaundryAmount > 0) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("Laundry Services:"),
+                          Text("₦$totalLaundryAmount"),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    if (totalDryCleaningAmount > 0) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("Dry Cleaning:"),
+                          Text("₦$totalDryCleaningAmount"),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Total:", style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text("₦$totalAmount", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1B5E20),
+                        ),
+                        onPressed: (totalLaundryAmount + totalDryCleaningAmount) > 0 ? () {
+                          _proceedToServiceType();
+                        } : null,
+                        child: const Text("Continue to Service Type", style: TextStyle(color: Colors.white)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _proceedToServiceType() {
+    final orderData = {
+      'selectedServices': widget.selectedServices,
+      'dryCleaningItems': items.where((item) => item["qty"] > 0).toList(),
+      'specialInstructions': specialInstructionsController.text,
+      'totalAmount': totalAmount,
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => LaundryServiceTypeSelection(
+        orderData: orderData,
+      )),
+    );
+  }
+}
+
+// ------------------ Laundry Service Type Selection ------------------
+// Update the Laundry Service Type Selection to include agent selection
+class LaundryServiceTypeSelection extends StatelessWidget {
+  final Map<String, dynamic> orderData;
+
+  const LaundryServiceTypeSelection({
+    super.key,
+    required this.orderData,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Service Type"),
+        backgroundColor: const Color(0xFF1B5E20),
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Choose Service Type",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "How would you like to schedule your laundry service?",
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 30),
+
+            // Immediate Service Card
+            Card(
+              elevation: 3,
+              child: ListTile(
+                leading: const Icon(Icons.flash_on, color: Colors.orange, size: 40),
+                title: const Text(
+                  "Immediate Service",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                subtitle: const Text("Pickup within the next 2 hours"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  _showLaundryImmediateServiceOverlay(context);
+                },
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Scheduled Service Card
+            Card(
+              elevation: 3,
+              child: ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.blue, size: 40),
+                title: const Text(
+                  "Schedule Pickup",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                subtitle: const Text("Schedule for a specific date and time"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  _showLaundryScheduledServiceOverlay(context);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLaundryImmediateServiceOverlay(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => LaundryImmediateServiceOverlay(
+        orderData: orderData,
+        serviceType: 'immediate',
+      ),
+    );
+  }
+
+  void _showLaundryScheduledServiceOverlay(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => LaundryScheduledServiceOverlay(
+        orderData: orderData,
+        serviceType: 'scheduled',
+      ),
+    );
+  }
+}
+
+// Updated Laundry Immediate Service Overlay
+class LaundryImmediateServiceOverlay extends StatefulWidget {
+  final Map<String, dynamic> orderData;
+  final String serviceType;
+
+  const LaundryImmediateServiceOverlay({
+    super.key,
+    required this.orderData,
+    required this.serviceType,
+  });
+
+  @override
+  State<LaundryImmediateServiceOverlay> createState() => _LaundryImmediateServiceOverlayState();
+}
+
+class _LaundryImmediateServiceOverlayState extends State<LaundryImmediateServiceOverlay> {
+  final TextEditingController addressController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController instructionsController = TextEditingController();
+  final CustomerService _customerService = CustomerService(AuthService());
+
+  bool _isSubmitting = false;
+
+  Future<void> _proceedToAgentSelection() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      // Prepare order data for agent selection
+      final agentSelectionData = {
+        ...widget.orderData,
+        'address': addressController.text,
+        'phone': phoneController.text,
+        'instructions': instructionsController.text,
+        'serviceType': widget.serviceType,
+        'location': addressController.text,
+      };
+
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AgentSelectionScreen(
+          serviceType: 'laundry',
+          orderData: agentSelectionData,
+          orderAmount: widget.orderData['totalAmount'].toDouble(),
+          onAgentSelected: (agent, orderData) {
+            // Handle agent selection - create order and proceed to summary
+            _createOrderAndNavigate(agent, orderData);
+          },
+        )),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
+
+
+  Future<void> _createOrderAndNavigate(Agent agent, Map<String, dynamic> orderData) async {
+    try {
+      // Use 'cleaning' service type to get the correct ObjectId
+      final serviceCategory = ServiceMapper.getCategoryId('cleaning');
+      if (serviceCategory == null) {
+        throw Exception('No service category found for cleaning service');
+      }
+
+      final customerOrder = await _customerService.createProfessionalOrder(
+        serviceCategory: serviceCategory, // This will be '68eab135001131897a342de4'
+        details: _buildOrderDetails(orderData),
+        location: addressController.text,
+        urgency: 'high',
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LaundryOrderSummaryScreen(
+          orderData: orderData,
+          address: addressController.text,
+          phone: phoneController.text,
+          instructions: instructionsController.text,
+          serviceType: widget.serviceType,
+          selectedAgent: agent,
+          customerOrder: customerOrder,
+        )),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating order: $e')),
+      );
+    }
+  }
+
+
+  String _buildOrderDetails(Map<String, dynamic> orderData) {
+    final selectedServices = orderData['selectedServices'] as Map<String, int>;
+    final dryCleaningItems = orderData['dryCleaningItems'] as List;
+
+    final details = StringBuffer();
+    details.writeln('Laundry Service Order Details:');
+
+    if (selectedServices.isNotEmpty) {
+      details.writeln('Selected Services:');
+      selectedServices.forEach((service, price) {
+        details.writeln('- $service: ₦$price');
+      });
+    }
+
+    if (dryCleaningItems.isNotEmpty) {
+      details.writeln('Dry Cleaning Items:');
+      for (var item in dryCleaningItems.where((item) => item["qty"] > 0)) {
+        details.writeln('- ${item["title"]} (x${item["qty"]}): ₦${(item["price"] as int) * (item["qty"] as int)}');
+      }
+    }
+
+    if (instructionsController.text.isNotEmpty) {
+      details.writeln('Special Instructions: ${instructionsController.text}');
+    }
+
+    details.writeln('Total Amount: ₦${orderData['totalAmount']}');
+
+    return details.toString();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Immediate Laundry Service",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: addressController,
+            decoration: const InputDecoration(
+              labelText: "Pickup Address",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: phoneController,
+            decoration: const InputDecoration(
+              labelText: "Phone Number",
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: instructionsController,
+            decoration: const InputDecoration(
+              labelText: "Special Instructions",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            "Service Details:",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          const Text("• Pickup within 2 hours"),
+          const Text("• Professional laundry service"),
+          const Text("• Delivery in 1-2 days"),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              onPressed: _isSubmitting ? null : _proceedToAgentSelection,
+              child: _isSubmitting
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                "Continue to Agent Selection",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Updated Laundry Scheduled Service Overlay
+class LaundryScheduledServiceOverlay extends StatefulWidget {
+  final Map<String, dynamic> orderData;
+  final String serviceType;
+
+  const LaundryScheduledServiceOverlay({
+    super.key,
+    required this.orderData,
+    required this.serviceType,
+  });
+
+  @override
+  State<LaundryScheduledServiceOverlay> createState() => _LaundryScheduledServiceOverlayState();
+}
+
+class _LaundryScheduledServiceOverlayState extends State<LaundryScheduledServiceOverlay> {
+  final TextEditingController addressController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController dateController = TextEditingController();
+  final TextEditingController timeController = TextEditingController();
+  final TextEditingController instructionsController = TextEditingController();
+  final CustomerService _customerService = CustomerService(AuthService());
+
+  DateTime? selectedDate;
+  TimeOfDay? selectedTime;
+  bool _isSubmitting = false;
+
+  Future<void> _proceedToAgentSelection() async {
+    if (_isSubmitting || selectedDate == null || selectedTime == null) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final agentSelectionData = {
+        ...widget.orderData,
+        'address': addressController.text,
+        'phone': phoneController.text,
+        'instructions': instructionsController.text,
+        'serviceType': widget.serviceType,
+        'scheduledDate': selectedDate!.toIso8601String(),
+        'scheduledTime': selectedTime!.format(context),
+        'location': addressController.text,
+      };
+
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AgentSelectionScreen(
+          serviceType: 'laundry',
+          orderData: agentSelectionData,
+          orderAmount: widget.orderData['totalAmount'].toDouble(),
+          onAgentSelected: (agent, orderData) {
+            _createOrderAndNavigate(agent, orderData);
+          },
+        )),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  Future<void> _createOrderAndNavigate(Agent agent, Map<String, dynamic> orderData) async {
+    try {
+      // Set loading state only if mounted
+      if (mounted) {
+        setState(() {
+          _isSubmitting = true;
+        });
+      }
+
+      // Use 'cleaning' service type to get the correct ObjectId
+      final serviceCategory = ServiceMapper.getCategoryId('cleaning');
+      if (serviceCategory == null) {
+        throw Exception('No service category found for cleaning service');
+      }
+
+      // Step 1: Create the order first
+      final customerOrderResponse = await _customerService.createProfessionalOrder(
+        serviceCategory: serviceCategory,
+        details: _buildOrderDetails(orderData),
+        location: addressController.text,
+        urgency: 'high',
+      );
+
+      // Convert the Map response to CustomerOrder object
+      final customerOrder = CustomerOrder.fromResponse(customerOrderResponse);
+
+      if (customerOrder == null) {
+        throw Exception('Could not create order from response: $customerOrderResponse');
+      }
+
+      print('✅ Laundry order created successfully with ID: ${customerOrder.id}');
+
+      // Step 2: Assign the selected agent to the order
+      try {
+        await _customerService.assignAgentToOrder(
+          orderId: customerOrder.id,
+          agentId: agent.id,
+        );
+        print('✅ Agent ${agent.displayName} assigned to order');
+      } catch (e) {
+        print('⚠️ Could not assign agent automatically: $e');
+        // Continue anyway - the agent can still accept manually
+      }
+
+      // Check if still mounted before navigating
+      if (!mounted) {
+        print('⚠️ Widget unmounted, skipping navigation');
+        return;
+      }
+
+      // Navigate to WAITING SCREEN
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => LaundryOrderWaitingScreen(
+          orderId: customerOrder.id,
+          selectedAgent: agent,
+          orderData: orderData,
+          customerOrder: customerOrder,
+        )),
+      );
+    } catch (e) {
+      print('❌ Error creating laundry order: $e');
+
+      // Only show error if still mounted
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating order: $e')),
+        );
+      }
+    } finally {
+      // Only update state if still mounted
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  String _buildOrderDetails(Map<String, dynamic> orderData) {
+    final selectedServices = orderData['selectedServices'] as Map<String, int>;
+    final dryCleaningItems = orderData['dryCleaningItems'] as List;
+
+    final details = StringBuffer();
+    details.writeln('Scheduled Laundry Service Order Details:');
+    details.writeln('Pickup Date: ${selectedDate!.toIso8601String()}');
+    details.writeln('Pickup Time: ${selectedTime!.format(context)}');
+
+    if (selectedServices.isNotEmpty) {
+      details.writeln('Selected Services:');
+      selectedServices.forEach((service, price) {
+        details.writeln('- $service: ₦$price');
+      });
+    }
+
+    if (dryCleaningItems.isNotEmpty) {
+      details.writeln('Dry Cleaning Items:');
+      for (var item in dryCleaningItems.where((item) => item["qty"] > 0)) {
+        details.writeln('- ${item["title"]} (x${item["qty"]}): ₦${(item["price"] as int) * (item["qty"] as int)}');
+      }
+    }
+
+    if (instructionsController.text.isNotEmpty) {
+      details.writeln('Special Instructions: ${instructionsController.text}');
+    }
+
+    details.writeln('Total Amount: ₦${orderData['totalAmount']}');
+
+    return details.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Schedule Laundry Service",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: addressController,
+            decoration: const InputDecoration(
+              labelText: "Pickup Address",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: phoneController,
+            decoration: const InputDecoration(
+              labelText: "Phone Number",
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: dateController,
+            decoration: const InputDecoration(
+              labelText: "Pickup Date",
+              border: OutlineInputBorder(),
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+            readOnly: true,
+            onTap: () => _selectDate(context),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: timeController,
+            decoration: const InputDecoration(
+              labelText: "Pickup Time",
+              border: OutlineInputBorder(),
+              suffixIcon: Icon(Icons.access_time),
+            ),
+            readOnly: true,
+            onTap: () => _selectTime(context),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: instructionsController,
+            decoration: const InputDecoration(
+              labelText: "Special Instructions",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              onPressed: (selectedDate != null && selectedTime != null && !_isSubmitting)
+                  ? _proceedToAgentSelection
+                  : null,
+              child: _isSubmitting
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                "Continue to Agent Selection",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _selectTime(BuildContext context) {}
+
+  void _selectDate(BuildContext context) {}
+}
+
+// Update the Laundry Order Summary Screen to use CustomerOrder
+class LaundryOrderSummaryScreen extends StatelessWidget {
+  final Map<String, dynamic> orderData;
+  final String address;
+  final String phone;
+  final String instructions;
+  final String serviceType;
+  final Agent selectedAgent;
+  final CustomerOrder customerOrder;
+  final DateTime? scheduledDate;
+  final TimeOfDay? scheduledTime;
+
+  const LaundryOrderSummaryScreen({
+    super.key,
+    required this.orderData,
+    required this.address,
+    required this.phone,
+    required this.instructions,
+    required this.serviceType,
+    required this.selectedAgent,
+    required this.customerOrder,
+    this.scheduledDate,
+    this.scheduledTime,
+  });
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentRow(String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: isBold ? const TextStyle(fontWeight: FontWeight.bold) : null,
+          ),
+          Text(
+            value,
+            style: isBold ? const TextStyle(fontWeight: FontWeight.bold, fontSize: 16) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedServices = orderData['selectedServices'] as Map<String, int>;
+    final dryCleaningItems = orderData['dryCleaningItems'] as List;
+    final totalAmount = orderData['totalAmount'] as int;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Order Summary"),
+        backgroundColor: const Color(0xFF1B5E20),
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Laundry Order Summary",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+
+            // Order ID
+            _buildDetailRow("Order ID:", customerOrder.id),
+            const SizedBox(height: 10),
+
+            // Selected Agent
+            _buildDetailRow("Assigned Agent:", selectedAgent.displayName),
+            const SizedBox(height: 10),
+
+            // Service Type
+            _buildDetailRow("Service Type:",
+                serviceType == 'immediate' ? "Immediate Service" : "Scheduled Service"),
+
+            if (scheduledDate != null && scheduledTime != null) ...[
+              const SizedBox(height: 10),
+              _buildDetailRow("Pickup Date:",
+                  "${scheduledDate!.day}/${scheduledDate!.month}/${scheduledDate!.year}"),
+              const SizedBox(height: 10),
+              _buildDetailRow("Pickup Time:", scheduledTime!.format(context)),
+            ],
+
+            const SizedBox(height: 10),
+            _buildDetailRow("Pickup Address:", address),
+            const SizedBox(height: 10),
+            _buildDetailRow("Phone:", phone),
+
+            if (instructions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildDetailRow("Instructions:", instructions),
+            ],
+
+            const SizedBox(height: 20),
+            const Text(
+              "Service Details",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+
+            // Selected Services
+            if (selectedServices.isNotEmpty) ...[
+              ...selectedServices.entries.map((entry) =>
+                  _buildDetailRow("${entry.key}:", "₦${entry.value}")
+              ),
+            ],
+
+            // Dry Cleaning Items
+            if (dryCleaningItems.isNotEmpty) ...[
+              ...dryCleaningItems.where((item) => item["qty"] > 0).map((item) =>
+                  _buildDetailRow("${item["title"]} (x${item["qty"]}):",
+                      "₦${(item["price"] as int) * (item["qty"] as int)}")
+              ),
+            ],
+
+            const Spacer(),
+
+            // Payment Summary
+            Card(
+              color: Colors.green[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildPaymentRow("Subtotal:", "₦$totalAmount"),
+                    _buildPaymentRow("Delivery Fee:", "₦1,000"),
+                    const Divider(),
+                    _buildPaymentRow("Total Amount:", "₦${totalAmount + 1000}", isBold: true),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Proceed to Payment Button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B5E20),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PaymentScreen(
+                      orderId: customerOrder.id,
+                      amount: totalAmount + 1000,
+                      agentId: selectedAgent.id,
+                    )),
+                  );
+                },
+                child: const Text(
+                  "Proceed to Payment",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Home Cleaning Screen (Missing Implementation)
 class HomeCleaningScreen extends StatefulWidget {
   const HomeCleaningScreen({super.key});
 
@@ -76,18 +1523,29 @@ class HomeCleaningScreen extends StatefulWidget {
 class _HomeCleaningScreenState extends State<HomeCleaningScreen> {
   int selectedHours = 1;
   int selectedProfessionals = 1;
+  String? selectedCategory;
 
   final categories = [
-    {"title": "Deep cleaning", "image": "assets/deep.png"},
-    {"title": "Move in cleaning", "image": "assets/movein.png"},
-    {"title": "Move out cleaning", "image": "assets/moveout.png"},
-    {"title": "Office Cleaning", "image": "assets/office.png"},
+    {"title": "Deep cleaning", "image": "assets/img_19.png"},
+    {"title": "Move in cleaning", "image": "assets/img_20.png"},
+    {"title": "Move out cleaning", "image": "assets/img_21.png"},
+    {"title": "Office Cleaning", "image": "assets/img_22png"},
   ];
+
+  double get totalAmount {
+    return (2000 * selectedHours * selectedProfessionals).toDouble();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Home Cleaning")),
+      appBar: AppBar(
+        title: const Text("Home Cleaning"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -144,17 +1602,18 @@ class _HomeCleaningScreenState extends State<HomeCleaningScreen> {
                 itemCount: categories.length,
                 itemBuilder: (context, index) {
                   final cat = categories[index];
+                  final isSelected = selectedCategory == cat["title"];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
+                    color: isSelected ? const Color(0xFF1B5E20).withOpacity(0.1) : null,
                     child: ListTile(
                       leading: Image.asset(cat["image"]!, width: 50),
                       title: Text(cat["title"]!),
+                      trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF1B5E20)) : null,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const ProfessionalsScreen()),
-                        );
+                        setState(() {
+                          selectedCategory = cat["title"];
+                        });
                       },
                     ),
                   );
@@ -169,14 +1628,10 @@ class _HomeCleaningScreenState extends State<HomeCleaningScreen> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const ProfessionalsScreen()),
-                  );
-                },
-                child: const Text("Proceed",
+                onPressed: selectedCategory != null ? () {
+                  _proceedToAgentSelection();
+                } : null,
+                child: const Text("Proceed to Agents",
                     style: TextStyle(color: Colors.white)),
               ),
             ),
@@ -185,85 +1640,166 @@ class _HomeCleaningScreenState extends State<HomeCleaningScreen> {
       ),
     );
   }
+
+  void _proceedToAgentSelection() {
+    final orderData = {
+      'serviceType': 'cleaning',
+      'selectedHours': selectedHours,
+      'selectedProfessionals': selectedProfessionals,
+      'selectedCategory': selectedCategory,
+      'hourlyRate': 2000,
+      'subtotal': totalAmount,
+      'totalAmount': totalAmount,
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgentSelectionScreen(
+          serviceType: 'cleaning',
+          orderData: orderData,
+          orderAmount: totalAmount,
+          onAgentSelected: (agent, orderData) {
+            // Handle home cleaning agent selection
+            _navigateToHomeCleaningServiceType(agent, orderData);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _navigateToHomeCleaningServiceType(Agent agent, Map<String, dynamic> orderData) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeCleaningServiceTypeSelection(
+          selectedAgent: agent,
+          orderData: orderData,
+        ),
+      ),
+    );
+  }
 }
 
+
 //////////////////////////////
-// 3. Professionals Screen
+// HOME CLEANING SERVICE TYPE SELECTION (IMMEDIATE/SCHEDULED)
 //////////////////////////////
-class ProfessionalsScreen extends StatelessWidget {
-  const ProfessionalsScreen({super.key});
+class HomeCleaningServiceTypeSelection extends StatefulWidget {
+  final Agent selectedAgent;
+  final Map<String, dynamic> orderData;
+
+  const HomeCleaningServiceTypeSelection({
+    super.key,
+    required this.selectedAgent,
+    required this.orderData,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final professionals = List.generate(6, (index) {
-      return {
-        "name": "Samuel Omisade",
-        "reviews": "Recommended in your area",
-        "image": "assets/pro.png"
-      };
-    });
+  State<HomeCleaningServiceTypeSelection> createState() => _HomeCleaningServiceTypeSelectionState();
+}
 
+class _HomeCleaningServiceTypeSelectionState extends State<HomeCleaningServiceTypeSelection> {
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Which professional do you prefer ?")),
+      appBar: AppBar(
+        title: const Text("Service Type"),
+        backgroundColor: const Color(0xFF1B5E20),
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Top rated professionals in your area",
-                style: TextStyle(color: Colors.black54)),
-            const SizedBox(height: 10),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.9,
-                ),
-                itemCount: professionals.length,
-                itemBuilder: (context, index) {
-                  final p = professionals[index];
-                  return Card(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 30,
-                          backgroundImage: AssetImage(p["image"]!),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(p["name"]!,
-                            style:
-                            const TextStyle(fontWeight: FontWeight.bold)),
-                        Text(p["reviews"]!,
-                            style: const TextStyle(fontSize: 12)),
-                      ],
+            // Selected Agent Info
+            Card(
+              color: Colors.green[50],
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey[300],
+                      backgroundImage: widget.selectedAgent.profileImage.isNotEmpty
+                          ? NetworkImage('https://runpro9ja-backend.onrender.com${widget.selectedAgent.profileImage}')
+                          : null,
+                      child: widget.selectedAgent.profileImage.isEmpty
+                          ? const Icon(Icons.person, color: Colors.grey)
+                          : null,
                     ),
-                  );
-                },
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.selectedAgent.displayName,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '₦${widget.selectedAgent.price.toStringAsFixed(0)}/hr • ${widget.selectedAgent.distance.toStringAsFixed(1)} km away',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B5E20)),
-                onPressed: () {
-                  showImmediateServiceOverlay(context);
-                },
-                child: const Text("Book Immediate Service Request",
-                    style: TextStyle(color: Colors.white)),
-              ),
+
+            const SizedBox(height: 20),
+            const Text(
+              "Choose Service Type",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  showScheduledAppointmentOverlay(context);
+            const Text(
+              "How would you like to schedule your cleaning service?",
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 30),
+
+            // Immediate Service Card
+            Card(
+              elevation: 3,
+              child: ListTile(
+                leading: const Icon(Icons.flash_on, color: Colors.orange, size: 40),
+                title: const Text(
+                  "Immediate Service",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                subtitle: const Text("Get service within the next 2 hours"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  _showHomeCleaningImmediateServiceOverlay(context);
                 },
-                child: const Text("Schedule Appointment"),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Scheduled Service Card
+            Card(
+              elevation: 3,
+              child: ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.blue, size: 40),
+                title: const Text(
+                  "Schedule Appointment",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                subtitle: const Text("Book for a specific date and time"),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  _showHomeCleaningScheduledServiceOverlay(context);
+                },
               ),
             ),
           ],
@@ -271,631 +1807,588 @@ class ProfessionalsScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _showHomeCleaningImmediateServiceOverlay(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => HomeCleaningImmediateServiceOverlay(
+        selectedAgent: widget.selectedAgent,
+        orderData: widget.orderData,
+        serviceType: 'immediate',
+      ),
+    );
+  }
+
+  void _showHomeCleaningScheduledServiceOverlay(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => HomeCleaningScheduledServiceOverlay(
+        selectedAgent: widget.selectedAgent,
+        orderData: widget.orderData,
+        serviceType: 'scheduled',
+      ),
+    );
+  }
+}
+//////////////////////////////
+// HOME CLEANING SCHEDULED SERVICE OVERLAY - FIXED VERSION
+//////////////////////////////
+class HomeCleaningScheduledServiceOverlay extends StatefulWidget {
+  final Agent selectedAgent;
+  final Map<String, dynamic> orderData;
+  final String serviceType;
+
+  const HomeCleaningScheduledServiceOverlay({
+    super.key,
+    required this.selectedAgent,
+    required this.orderData,
+    required this.serviceType,
+  });
+
+  @override
+  State<HomeCleaningScheduledServiceOverlay> createState() => _HomeCleaningScheduledServiceOverlayState();
 }
 
-//////////////////////////////
-// Scheduled Appointment Overlay
-//////////////////////////////
-void showScheduledAppointmentOverlay(BuildContext context) {
-  final addressController = TextEditingController();
-  final phoneController = TextEditingController(text: "09045678932");
-  final fromTimeController = TextEditingController();
-  final toTimeController = TextEditingController();
-  final deliveryNoteController = TextEditingController();
+class _HomeCleaningScheduledServiceOverlayState extends State<HomeCleaningScheduledServiceOverlay> {
+  final TextEditingController addressController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController dateController = TextEditingController();
+  final TextEditingController timeController = TextEditingController();
+  final TextEditingController instructionsController = TextEditingController();
+  final CustomerService _customerService = CustomerService(AuthService());
 
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: MediaQuery.of(context).viewInsets,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        "Scheduled Appointments",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(
-                    labelText: "Address details",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: "Phone number",
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: "Date",
-                    border: OutlineInputBorder(),
-                  ),
-                  onTap: () async {
-                    await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime(2100),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: fromTimeController,
-                        decoration: const InputDecoration(
-                          labelText: "From",
-                          border: OutlineInputBorder(),
-                        ),
-                        readOnly: true,
-                        onTap: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: TimeOfDay.now(),
-                          );
-                          if (time != null) {
-                            fromTimeController.text = time.format(context);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: toTimeController,
-                        decoration: const InputDecoration(
-                          labelText: "To",
-                          border: OutlineInputBorder(),
-                        ),
-                        readOnly: true,
-                        onTap: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: TimeOfDay.now(),
-                          );
-                          if (time != null) {
-                            toTimeController.text = time.format(context);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: deliveryNoteController,
-                  decoration: const InputDecoration(
-                    labelText: "What to deliver",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text("Payment Offer",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text("Hourly Rate: ₦2,000.00"),
-                const Text("Requested time: ₦2,000.00 × 4"),
-                const Text("Total: ₦8,000.00",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B5E20),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Scheduled appointment confirmed")),
-                      );
-                    },
-                    child: const Text("Pay",
-                        style: TextStyle(color: Colors.white)),
-                  ),
-                )
-              ],
-            ),
-          ),
-        ),
+  DateTime? selectedDate;
+  TimeOfDay? selectedTime;
+  bool _isSubmitting = false;
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        selectedDate = picked;
+        dateController.text = "${picked.day}/${picked.month}/${picked.year}";
+      });
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        selectedTime = picked;
+        timeController.text = picked.format(context);
+      });
+    }
+  }
+//1
+  Future<void> _createOrder() async {
+    if (_isSubmitting || selectedDate == null || selectedTime == null) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      // FIX: Use ServiceMapper to get the ObjectId for 'cleaning'
+      final serviceCategory = ServiceMapper.getCategoryId('cleaning');
+      if (serviceCategory == null) {
+        throw Exception('No service category found for cleaning service');
+      }
+
+      final customerOrder = await _customerService.createProfessionalOrder(
+        serviceCategory: serviceCategory, // Use the ObjectId from ServiceMapper
+        details: _buildOrderDetails(),
+        location: addressController.text,
+        scheduledDate: selectedDate!.toIso8601String(),
+        scheduledTime: selectedTime!.format(context),
+        urgency: 'medium',
       );
-    },
-  );
-}
 
-//////////////////////////////
-// Immediate Service Overlay
-//////////////////////////////
-void showImmediateServiceOverlay(BuildContext context) {
-  final phoneController = TextEditingController(text: "09045678932");
-  final addressController = TextEditingController();
-  final commentController = TextEditingController();
-
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: MediaQuery.of(context).viewInsets,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        "Immediate Service Request",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: "Phone number",
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(
-                    labelText: "Address",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: commentController,
-                  decoration: const InputDecoration(
-                    labelText: "Comment",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text("Payment Offer",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text("Hourly Rate: ₦2,000.00"),
-                const Text("Requested time: ₦2,000.00 × 4"),
-                const Text("Total: ₦8,000.00",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B5E20),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Immediate request confirmed")),
-                      );
-                    },
-                    child: const Text("Pay",
-                        style: TextStyle(color: Colors.white)),
-                  ),
-                )
-              ],
-            ),
-          ),
-        ),
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => HomeCleaningOrderRecap(
+          serviceType: widget.serviceType,
+          selectedAgent: widget.selectedAgent,
+          orderData: {
+            ...widget.orderData,
+            'address': addressController.text,
+            'phone': phoneController.text,
+            'instructions': instructionsController.text,
+            'scheduledDate': selectedDate,
+            'scheduledTime': selectedTime,
+            'orderId': customerOrder.id,
+          },
+          customerOrder: customerOrder,
+        )),
       );
-    },
-  );
-}
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating order: $e')),
+      );
+    } finally {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
 
+  String _buildOrderDetails() {
+    final details = StringBuffer();
+    details.writeln('Scheduled Home Cleaning Service Order Details:');
+    details.writeln('Service Date: ${selectedDate!.toIso8601String()}');
+    details.writeln('Service Time: ${selectedTime!.format(context)}');
+    details.writeln('Cleaning Category: ${widget.orderData['selectedCategory']}');
+    details.writeln('Hours: ${widget.orderData['selectedHours']} hours');
+    details.writeln('Professionals: ${widget.orderData['selectedProfessionals']}');
+    details.writeln('Hourly Rate: ₦2,000');
 
+    if (instructionsController.text.isNotEmpty) {
+      details.writeln('Special Instructions: ${instructionsController.text}');
+    }
 
-class Laundry extends StatelessWidget {
-  const Laundry({super.key});
+    details.writeln('Total Amount: ₦${widget.orderData['totalAmount']}');
+
+    return details.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Cleaning Service',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        primarySwatch: Colors.green,
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Schedule Cleaning Service",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: addressController,
+            decoration: const InputDecoration(
+              labelText: "Service Address",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: phoneController,
+            decoration: const InputDecoration(
+              labelText: "Phone Number",
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: dateController,
+            decoration: const InputDecoration(
+              labelText: "Service Date",
+              border: OutlineInputBorder(),
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+            readOnly: true,
+            onTap: () => _selectDate(context),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: timeController,
+            decoration: const InputDecoration(
+              labelText: "Service Time",
+              border: OutlineInputBorder(),
+              suffixIcon: Icon(Icons.access_time),
+            ),
+            readOnly: true,
+            onTap: () => _selectTime(context),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: instructionsController,
+            decoration: const InputDecoration(
+              labelText: "Special Instructions",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              onPressed: (selectedDate != null && selectedTime != null && !_isSubmitting)
+                  ? _createOrder
+                  : null,
+              child: _isSubmitting
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                "Schedule Service",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
       ),
-      home: const SelectServicesScreen(),
     );
   }
 }
 
-// ------------------ SCREEN 1 ------------------
-class SelectServicesScreen extends StatelessWidget {
-  const SelectServicesScreen({super.key});
+//////////////////////////////
+// UPDATED HOME CLEANING ORDER RECAP SCREEN
+//////////////////////////////
+class HomeCleaningOrderRecap extends StatelessWidget {
+  final String serviceType;
+  final Agent selectedAgent;
+  final Map<String, dynamic> orderData;
+  final CustomerOrder customerOrder;
 
-  final List<Map<String, dynamic>> services = const [
-    {
-      "title": "Hand wash",
-      "icon": Icons.wash,
-    },
-    {
-      "title": "Washing machine wash",
-      "icon": Icons.local_laundry_service,
-    },
-    {
-      "title": "Iron only",
-      "icon": Icons.iron,
-    },
-    {
-      "title": "Wash, dry, and fold",
-      "icon": Icons.local_laundry_service_outlined,
-    },
-    {
-      "title": "Curtain, sheets & bulk items",
-      "icon": Icons.inventory,
-    },
-  ];
+  const HomeCleaningOrderRecap({
+    super.key,
+    required this.serviceType,
+    required this.selectedAgent,
+    required this.orderData,
+    required this.customerOrder,
+  });
+
+  Widget _buildPaymentRow(String label, String value, {bool isBold = false}) {
+    return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: isBold ? const TextStyle(fontWeight: FontWeight.bold) : null,
+            ),
+            Text(
+              value,
+              style: isBold ? const TextStyle(fontWeight: FontWeight.bold, fontSize: 16) : null,
+            ),
+          ],
+        )
+    );
+    }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 150,
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            Expanded(
+              child: Text(value),
+            ),
+          ],
+        )
+    );
+    }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
-        title: const Text("Select Services"),
+        title: const Text("Order Recap"),
+        backgroundColor: const Color(0xFF1B5E20),
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: services.length,
-              itemBuilder: (context, index) {
-                final service = services[index];
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  child: ListTile(
-                    leading: Icon(service["icon"], size: 40, color: Colors.green),
-                    title: Text(service["title"],
-                        style: const TextStyle(fontWeight: FontWeight.w500,fontSize: 17)),
-                    trailing: const Text(
-                      "Check Prices",
-                      style: TextStyle(color: Colors.green , fontSize: 12),
-                    ),
-                    onTap: () {
-                      // Open Categories Overlay
-                      showModalBottomSheet(
-                        context: context,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                        ),
-                        builder: (_) => const CategoriesSheet(),
-                      );
-                    },
-                  ),
-                );
-              },
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Home Cleaning Order Summary",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: SizedBox(
+            const SizedBox(height: 20),
+
+            // Order ID
+            _buildDetailRow("Order ID:", customerOrder.id),
+            const SizedBox(height: 10),
+
+            // Selected Agent
+            _buildDetailRow("Assigned Agent:", selectedAgent.displayName),
+            const SizedBox(height: 10),
+
+            // Service Type
+            _buildDetailRow("Service Type:",
+                serviceType == 'immediate' ? "Immediate Service" : "Scheduled Service"),
+
+            if (orderData['scheduledDate'] != null && orderData['scheduledTime'] != null) ...[
+              const SizedBox(height: 10),
+              _buildDetailRow("Service Date:",
+                  "${orderData['scheduledDate'].day}/${orderData['scheduledDate'].month}/${orderData['scheduledDate'].year}"),
+              const SizedBox(height: 10),
+              _buildDetailRow("Service Time:", orderData['scheduledTime'].format(context)),
+            ],
+
+            const SizedBox(height: 10),
+            _buildDetailRow("Service Address:", orderData['address'] ?? ''),
+            const SizedBox(height: 10),
+            _buildDetailRow("Phone:", orderData['phone'] ?? ''),
+
+            if (orderData['instructions'] != null && orderData['instructions'].isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildDetailRow("Instructions:", orderData['instructions']),
+            ],
+
+            const SizedBox(height: 10),
+            _buildDetailRow("Cleaning Category:", orderData['selectedCategory'] ?? ''),
+            const SizedBox(height: 10),
+            _buildDetailRow("Hours:", "${orderData['selectedHours']} hours"),
+            const SizedBox(height: 10),
+            _buildDetailRow("Professionals:", "${orderData['selectedProfessionals']} professionals"),
+
+            const Spacer(),
+
+            // Payment Summary
+            Card(
+              color: Colors.green[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildPaymentRow("Hourly Rate (₦2,000 × ${orderData['selectedHours']} hrs):",
+                        "₦${2000 * orderData['selectedHours']}"),
+                    _buildPaymentRow("Professionals (×${orderData['selectedProfessionals']}):",
+                        "₦${orderData['totalAmount']}"),
+                    const Divider(),
+                    _buildPaymentRow("Total Amount:", "₦${orderData['totalAmount']}", isBold: true),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Proceed to Payment Button
+            SizedBox(
               width: double.infinity,
-              height: 48,
+              height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  backgroundColor: const Color(0xFF1B5E20),
                 ),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_)=>const DryCleaningScreen()));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PaymentScreen(
+                      orderId: customerOrder.id,
+                      amount: orderData['totalAmount'],
+                      agentId: selectedAgent.id,
+                    )),
+                  );
                 },
                 child: const Text(
-                  "Proceed",
+                  "Proceed to Payment",
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
             ),
-          )
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+//////////////////////////////
+// HOME CLEANING IMMEDIATE SERVICE OVERLAY - FIXED VERSION
+//////////////////////////////
+class HomeCleaningImmediateServiceOverlay extends StatefulWidget {
+  final Agent selectedAgent;
+  final Map<String, dynamic> orderData;
+  final String serviceType;
 
-// ------------------ SCREEN 2 ------------------
-class CategoriesSheet extends StatelessWidget {
-  const CategoriesSheet({super.key});
+  const HomeCleaningImmediateServiceOverlay({
+    super.key,
+    required this.selectedAgent,
+    required this.orderData,
+    required this.serviceType,
+  });
 
-  final List<Map<String, String>> categories = const [
-    {"title": "Shirts", "price": "₦1,000"},
-    {"title": "Blouse", "price": "₦1,000"},
-    {"title": "T-shirts", "price": "₦1,000"},
-    {"title": "Tank tops", "price": "₦1,000"},
-    {"title": "Crop tops", "price": "₦1,000"},
-    {"title": "Sweaters", "price": "₦1,000"},
-    {"title": "Hoodies", "price": "₦1,000"},
-    {"title": "Jackets", "price": "₦1,000"},
-  ];
+  @override
+  State<HomeCleaningImmediateServiceOverlay> createState() => _HomeCleaningImmediateServiceOverlayState();
+}
+
+class _HomeCleaningImmediateServiceOverlayState extends State<HomeCleaningImmediateServiceOverlay> {
+  final TextEditingController addressController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController instructionsController = TextEditingController();
+  final CustomerService _customerService = CustomerService(AuthService());
+
+  bool _isSubmitting = false;
+
+  Future<void> _createOrder() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final serviceCategory = ServiceMapper.getCategoryId('cleaning');
+      if (serviceCategory == null) {
+        throw Exception('No service category found for cleaning service');
+      }
+
+      final customerOrderResponse = await _customerService.createProfessionalOrder(
+        serviceCategory: serviceCategory,
+        details: _buildOrderDetails(),
+        location: addressController.text,
+        urgency: 'high',
+      );
+
+      // Convert the Map response to CustomerOrder object using the new method
+      final customerOrder = CustomerOrder.fromResponse(customerOrderResponse);
+
+      if (customerOrder == null) {
+        throw Exception('Could not create order from response: $customerOrderResponse');
+      }
+
+      print('✅ Order created successfully with ID: ${customerOrder.id}');
+
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => HomeCleaningOrderRecap(
+          serviceType: widget.serviceType,
+          selectedAgent: widget.selectedAgent,
+          orderData: {
+            ...widget.orderData,
+            'address': addressController.text,
+            'phone': phoneController.text,
+            'instructions': instructionsController.text,
+            'orderId': customerOrder.id, // Now this will work
+          },
+          customerOrder: customerOrder, // This is now a CustomerOrder object
+        )),
+      );
+    } catch (e) {
+      print('❌ Error creating order: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating order: $e')),
+      );
+    } finally {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
+  String _buildOrderDetails() {
+    final details = StringBuffer();
+    details.writeln('Immediate Home Cleaning Service Order Details:');
+    details.writeln('Service Type: ${widget.serviceType}');
+    details.writeln('Cleaning Category: ${widget.orderData['selectedCategory']}');
+    details.writeln('Hours: ${widget.orderData['selectedHours']} hours');
+    details.writeln('Professionals: ${widget.orderData['selectedProfessionals']}');
+    details.writeln('Hourly Rate: ₦2,000');
+
+    if (instructionsController.text.isNotEmpty) {
+      details.writeln('Special Instructions: ${instructionsController.text}');
+    }
+
+    details.writeln('Total Amount: ₦${widget.orderData['totalAmount']}');
+
+    return details.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 380,
+    return Padding(
+      padding: const EdgeInsets.all(20),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 12),
-          const Text("Categories",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const Divider(),
-          Expanded(
-            child: ListView.builder(
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final item = categories[index];
-                return ListTile(
-                  leading: const Icon(Icons.check_box_outline_blank),
-                  title: Text(item["title"]!),
-                  trailing: Text(item["price"]!,
-                      style: const TextStyle(color: Colors.black87)),
-                  onTap: () {},
-                );
-              },
+          const Text(
+            "Immediate Cleaning Service",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: addressController,
+            decoration: const InputDecoration(
+              labelText: "Service Address",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: phoneController,
+            decoration: const InputDecoration(
+              labelText: "Phone Number",
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 15),
+          TextField(
+            controller: instructionsController,
+            decoration: const InputDecoration(
+              labelText: "Special Instructions",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            "Service Details:",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Text("• ${widget.orderData['selectedHours']} hours"),
+          Text("• ${widget.orderData['selectedProfessionals']} professionals"),
+          Text("• ${widget.orderData['selectedCategory']}"),
+          const Text("• Service within 2 hours"),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              onPressed: _isSubmitting ? null : _createOrder,
+              child: _isSubmitting
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                "Confirm Immediate Service",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-
-// ------------------ SCREEN 3 ------------------
-class DryCleaningScreen extends StatefulWidget {
-  const DryCleaningScreen({super.key});
-
-  @override
-  State<DryCleaningScreen> createState() => _DryCleaningScreenState();
-}
-
-class _DryCleaningScreenState extends State<DryCleaningScreen> {
-  final List<Map<String, dynamic>> items = [
-    {"title": "Shirts", "price": "₦1000 per shirt", "qty": 0},
-    {"title": "Trousers", "price": "₦1000 per trouser", "qty": 0},
-    {"title": "Duvet", "price": "₦1000 per duvet", "qty": 0},
-    {"title": "Curtain", "price": "₦1000 per yard", "qty": 0},
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Dry Cleaning")),
-      body: Padding(
-        padding: const EdgeInsets.all(19),
-        child: Column(
-          children: [
-            Text("You can select from the different kinds of clothes you’d like us to wash for you."),
-            SizedBox(height: 10,),
-            Expanded(
-              child: ListView.builder(
-                itemCount: items.length,
-                itemBuilder: (context, i) {
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    child: ListTile(
-                      title: Text(items[i]["title"]),
-                      subtitle: Text(items[i]["price"]),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: () {
-                              setState(() {
-                                if (items[i]["qty"] > 0) items[i]["qty"]--;
-                              });
-                            },
-                          ),
-                          Text("${items[i]["qty"]}"),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: () {
-                              setState(() {
-                                items[i]["qty"]++;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const TextField(
-              decoration: InputDecoration(
-                hintText: "Kindly specify if there’s anything you’d want us to look out for",
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CreateOrderScreen()),
-                  );
-                },
-                child: const Text("Proceed", style: TextStyle(color: Colors.white)),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------ SCREEN 2 ------------------
-class CreateOrderScreen extends StatelessWidget {
-  const CreateOrderScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Create Order")),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Card(
-              child: ListTile(
-                title: const Text("Pickup Information"),
-                subtitle: const Text("12/09/25\nBlock 6, Oyo Estate, Alakuko, Lagos."),
-                trailing: const Icon(Icons.edit, color: Colors.green),
-                onTap: () {},
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                title: const Text("Delivery Information"),
-                subtitle: const Text("12/09/25\nBlock 6, Oyo Estate, Alakuko, Lagos."),
-                trailing: const Icon(Icons.edit, color: Colors.green),
-                onTap: () {},
-              ),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const OrderSummaryScreen()),
-                  );
-                },
-                child: const Text("Continue", style: TextStyle(color: Colors.white)),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------ SCREEN 3 ------------------
-class OrderSummaryScreen extends StatelessWidget {
-  const OrderSummaryScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Order Summary")),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Your Information",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            const Text("Name: Jinadu Aswani\nAddress: Block 6, Oyo Estate, Alakuko Lagos\nPhone Number: 08012345678"),
-            const Divider(height: 24),
-            const Text("Payment",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            ListTile(
-              title: const Text("Laundry Fee"),
-              trailing: const Text("₦10,000"),
-            ),
-            ListTile(
-              title: const Text("Delivery Fee"),
-              trailing: const Text("₦1,000"),
-            ),
-            const Divider(),
-            ListTile(
-              title: const Text("Total",
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              trailing: const Text("₦11,000",
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            const Divider(height: 24),
-            const Text("Delivery Method",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const Text(
-                "Drop-off: Block 6, Oyo Estate, Alakuko, Lagos\nClothes will be delivered 3 days after pickup."),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_)=> const PaymentApp()));
-                },
-                child: const Text("Proceed to Pay", style: TextStyle(color: Colors.white)),
-              ),
-            )
-          ],
-        ),
       ),
     );
   }

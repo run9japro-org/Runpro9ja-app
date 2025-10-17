@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../auth/authcontroller/auth_controller.dart';
+import '../../auth/Auth_services/auth_service.dart';
+import '../termsandcondition.dart';
 import 'otp_screen.dart';
+import 'package:flutter/gestures.dart';
+
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -46,9 +49,14 @@ class _SignupScreenState extends State<SignupScreen> {
         "dob": _controllers['dob']!.text.trim(), // dd/mm/yyyy
       };
 
+      print('📝 Registration data: $data');
+
       final response = await authService.register(data);
 
+      print('📡 Registration response: $response');
+
       if (response['success'] == true) {
+        print('✅ Registration successful, navigating to OTP screen');
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -57,21 +65,19 @@ class _SignupScreenState extends State<SignupScreen> {
         ).then((_) {
           _controllers.forEach((_, controller) => controller.clear());
         });
-
-        if (!mounted) return;
-
       } else {
+        print('❌ Registration failed: ${response['message']}');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(response['message'] ?? "Signup failed")),
         );
       }
     } catch (e) {
+      print('💥 Registration error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
       );
-      print(e);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -219,14 +225,23 @@ class _SignupScreenState extends State<SignupScreen> {
                       color: Colors.grey[600],
                     ),
                     children: [
-                      const TextSpan(
-                          text: "By clicking continue, you are agreeing to our "),
+                      const TextSpan(text: "By clicking continue, you are agreeing to our "),
                       TextSpan(
                         text: "Terms of Service",
                         style: TextStyle(
                           color: Colors.green[700],
                           fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
                         ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TermsAndConditionsScreen(),
+                              ),
+                            );
+                          },
                       ),
                       const TextSpan(text: " and "),
                       TextSpan(
@@ -234,55 +249,18 @@ class _SignupScreenState extends State<SignupScreen> {
                         style: TextStyle(
                           color: Colors.green[700],
                           fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 20),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: Colors.grey[300],
-                        thickness: 1,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Text(
-                        "Or continue with",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: Colors.grey[300],
-                        thickness: 1,
-                      ),
-                    ),
-                  ],
-                ),
+
                 const SizedBox(height: 20),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildSocialButton(
-                      icon: Icons.g_mobiledata,
-                      onPressed: () {},
-                    ),
-                    const SizedBox(width: 16),
-                    _buildSocialButton(
-                      icon: Icons.facebook,
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

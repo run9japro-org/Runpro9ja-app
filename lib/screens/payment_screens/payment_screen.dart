@@ -1,386 +1,419 @@
+// lib/screens/payment/payment_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:webview_flutter/webview_flutter.dart';
+import '../../auth/Auth_services/auth_service.dart';
+import '../../services/payment_service.dart';
+import 'payment_success_screen.dart';
 
-void main() {
-  runApp(const PaymentApp());
-}
+class PaymentScreen extends StatefulWidget {
+  final String orderId;
+  final double amount;
+  final String agentId;
 
-class PaymentApp extends StatelessWidget {
-  const PaymentApp({super.key});
+  const PaymentScreen({
+    super.key,
+    required this.orderId,
+    required this.amount,
+    required this.agentId,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Payment UI',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E8B6D)),
-      ),
-      home: const PaymentOptionScreen(),
-    );
+  State<PaymentScreen> createState() => _PaymentScreenState();
+}
+
+class _PaymentScreenState extends State<PaymentScreen> {
+  late final WebViewController controller;
+  late final PaymentService _paymentService;
+  bool _isLoading = true;
+  bool _paymentInitialized = false;
+  bool _paymentCompleted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _paymentService = PaymentService(AuthService());
+    _initializePayment();
   }
-}
 
-class PaymentOptionScreen extends StatefulWidget {
-  const PaymentOptionScreen({super.key});
+  Future<void> _initializePayment() async {
+    try {
+      print('💰 Initializing payment for order: ${widget.orderId}');
 
-  @override
-  State<PaymentOptionScreen> createState() => _PaymentOptionScreenState();
-}
+      final paymentData = await _paymentService.initializePayment(
+        orderId: widget.orderId,
+        amount: widget.amount,
+        agentId: widget.agentId,
+      );
 
-class _PaymentOptionScreenState extends State<PaymentOptionScreen> {
-  String? selectedOption;
+      if (paymentData['success'] == true) {
+        final authorizationUrl = paymentData['authorizationUrl'];
+        final reference = paymentData['reference'];
 
-  // Card controllers
-  final TextEditingController nameController =
-  TextEditingController(text: "Mariam Hussein");
-  final TextEditingController cardController =
-  TextEditingController(text: "**** **** **** 6754");
-  final TextEditingController expiryController =
-  TextEditingController(text: "02/26");
-  final TextEditingController cvvController =
-  TextEditingController(text: "***");
+        print('✅ Payment initialized. Authorization URL: $authorizationUrl');
+        print('✅ Payment reference: $reference');
 
-  bool saveCard = false;
+        setState(() {
+          _paymentInitialized = true;
+        });
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Payment Option"),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+        controller = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setBackgroundColor(const Color(0x00000000))
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onProgress: (int progress) {
+                print('Loading: $progress%');
+              },
+              onPageStarted: (String url) {
+                setState(() => _isLoading = true);
+              },
+              onPageFinished: (String url) {
+                setState(() => _isLoading = false);
+                print('Page finished loading: $url');
+                _handlePaymentCallback(url);
+              },
+              onWebResourceError: (WebResourceError error) {
+                print('WebView error: ${error.description}');
+                if (!_paymentCompleted) {
+                  _showError('Payment page loading failed: ${error.description}');
+                }
+              },
+              onNavigationRequest: (NavigationRequest request) {
+                print('Navigation to: ${request.url}');
+                _handlePaymentCallback(request.url);
+                return NavigationDecision.navigate;
+              },
+              onUrlChange: (UrlChange change) {
+                print('URL changed to: ${change.url}');
+                _handlePaymentCallback(change.url ?? '');
+              },
+            ),
+          )
+          ..loadRequest(Uri.parse(authorizationUrl));
+      } else {
+        throw Exception('Failed to initialize payment');
+      }
+    } catch (e) {
+      print('❌ Payment initialization error: $e');
+      _showError('Payment initialization failed: $e');
+    }
+  }
+
+  void _handlePaymentCallback(String url) {
+    if (_paymentCompleted) return; // Prevent multiple calls
+
+    print('🔄 Handling payment callback: $url');
+
+    // Check for Paystack success URLs
+    if (url.contains('callback') &&
+        (url.contains('success') || url.contains('reference=') || url.contains('trxref='))) {
+
+      print('✅ Payment completion callback detected');
+
+      final uri = Uri.parse(url);
+      final reference = uri.queryParameters['trxref'] ?? uri.queryParameters['reference'];
+
+      if (reference != null) {
+        print('🔍 Extracted reference: $reference');
+        _verifyPaymentWithReference(reference);
+      } else {
+        // If no reference, check with backend
+        _checkPaymentStatusWithBackend();
+      }
+    }
+
+    // Check for failure URLs
+    if (url.contains('failed') || url.contains('error=true')) {
+      print('❌ Payment failure detected');
+      _showError('Payment was cancelled or failed. Please try again.');
+    }
+  }
+
+  Future<void> _verifyPaymentWithReference(String reference) async {
+    try {
+      print('🔍 Verifying payment with reference: $reference');
+
+      setState(() {
+        _isLoading = true;
+      });
+
+      final verificationResult = await _paymentService.verifyPayment(reference);
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (verificationResult['success'] == true) {
+        print('✅ Payment verified successfully!');
+        _paymentCompleted = true;
+        _showSuccess();
+      } else {
+        print('❌ Payment verification failed: ${verificationResult['message']}');
+        _showError('Payment failed: ${verificationResult['message']}');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('❌ Payment verification error: $e');
+      // Fallback to backend check
+      _checkPaymentStatusWithBackend();
+    }
+  }
+
+  Future<void> _checkPaymentStatusWithBackend() async {
+    try {
+      print('🔍 Checking payment status with backend for order: ${widget.orderId}');
+
+      setState(() {
+        _isLoading = true;
+      });
+
+      // Try to get order details to check payment status
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('https://runpro9ja-backend.onrender.com/api/orders/${widget.orderId}'),
+        headers: headers,
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.statusCode == 200) {
+        final orderData = json.decode(response.body);
+        final order = orderData['order'];
+        final paymentStatus = order['paymentStatus'];
+        final status = order['status'];
+
+        print('📊 Order status: $status, Payment status: $paymentStatus');
+
+        if (paymentStatus == 'paid' || paymentStatus == 'completed' || status == 'confirmed') {
+          _paymentCompleted = true;
+          _showSuccess();
+        } else {
+          _showError('Payment is still pending. Please check your email for confirmation.');
+        }
+      } else {
+        _showError('Unable to verify payment status. Please check your email for confirmation.');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('❌ Backend status check error: $e');
+      _showError('Payment status verification failed. Please check your email for confirmation.');
+    }
+  }
+
+  Future<Map<String, String>> _getHeaders() async {
+    final token = await AuthService().getToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+  }
+
+  void _showSuccess() {
+    _paymentCompleted = true;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentSuccessScreen(
+          orderId: widget.orderId,
+          amount: widget.amount,
+          agentId: widget.agentId,
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    );
+  }
+
+  void _showError(String message) {
+    if (_paymentCompleted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Payment Status'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Close payment screen
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancelPayment() async {
+    try {
+      print('🚫 Cancelling payment for order: ${widget.orderId}');
+
+      setState(() {
+        _isLoading = true;
+      });
+
+      // Call backend to cancel payment
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('https://runpro9ja-pxqoa.ondigitalocean.app/api/payments/${widget.orderId}/cancel'),
+        headers: headers,
+        body: json.encode({
+          'cancelledBy': 'user',
+          'reason': 'User cancelled payment process',
+        }),
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.statusCode == 200) {
+        print('✅ Payment cancelled successfully');
+        _showCancellationSuccess();
+      } else {
+        print('❌ Payment cancellation failed: ${response.statusCode}');
+        _showCancellationError('Failed to cancel payment. Please contact support.');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('❌ Payment cancellation error: $e');
+      _showCancellationError('Cancellation failed: $e');
+    }
+  }
+
+  void _showCancellationSuccess() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
           children: [
-            // Payment Options
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  RadioListTile(
-                    value: "card",
-                    groupValue: selectedOption,
-                    onChanged: (val) {
-                      setState(() {
-                        selectedOption = val.toString();
-                      });
-                    },
-                    title: const Text("Credit/Debit Card"),
-                    secondary:
-                    const Icon(Icons.credit_card, color: Color(0xFF2E8B6D)),
-                  ),
-                  const Divider(height: 1),
-                  RadioListTile(
-                    value: "bank",
-                    groupValue: selectedOption,
-                    onChanged: (val) {
-                      setState(() {
-                        selectedOption = val.toString();
-                      });
-                    },
-                    title: const Text("Bank Transfer"),
-                    secondary: const Icon(Icons.account_balance,
-                        color: Color(0xFF2E8B6D)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
+            Icon(Icons.check_circle, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Payment Cancelled'),
+          ],
+        ),
+        content: const Text('Your payment has been successfully cancelled. No amount was deducted from your account.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Close payment screen
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // ================= CARD FORM =================
-            if (selectedOption == "card") ...[
-              const Text(
-                "Enter Card Details",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 10),
+  void _showCancellationError(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.error, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Cancellation Status'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Try Again'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Close payment screen
+            },
+            child: const Text('Exit Anyway', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: "Card Holder's Name",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
+// Update the _showExitConfirmation method
 
-              TextField(
-                controller: cardController,
-                decoration: const InputDecoration(
-                  labelText: "Card Number",
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: expiryController,
-                      decoration: const InputDecoration(
-                        labelText: "Expiry Date",
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.datetime,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: cvvController,
-                      decoration: const InputDecoration(
-                        labelText: "CVV/CVC",
-                        border: OutlineInputBorder(),
-                      ),
-                      obscureText: true,
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Checkbox(
-                    value: saveCard,
-                    activeColor: const Color(0xFF2E8B6D),
-                    onChanged: (val) {
-                      setState(() {
-                        saveCard = val ?? false;
-                      });
-                    },
-                  ),
-                  const Text("Save card information for next time"),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E8B6D),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const SuccessScreen()),
-                    );
-                  },
-                  child: const Text(
-                    "Continue",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false, // Prevent back button during payment
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _showExitConfirmation();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Secure Payment'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black87,
+          elevation: 1,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: _showExitConfirmation,
+          ),
+        ),
+        body: !_paymentInitialized
+            ? const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Initializing payment...'),
             ],
-
-            // ================= BANK TRANSFER =================
-            if (selectedOption == "bank") ...[
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Bank Transfer Details",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    fontSize: 16,
-                  ),
-                ),
+          ),
+        )
+            : Stack(
+          children: [
+            WebViewWidget(controller: controller),
+            if (_isLoading)
+              const Center(
+                child: CircularProgressIndicator(),
               ),
-              const SizedBox(height: 15),
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    buildDetailRow("Bank Name", "Stanbic IBTC Bank"),
-                    const Divider(),
-                    buildDetailRow("Account Name", "Runpro9ja"),
-                    const Divider(),
-                    buildDetailRow("Account Number", "78840984356"),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Copy Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Clipboard.setData(const ClipboardData(text: "78840984356"));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Account number copied!")),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[700],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    "Copy Account Number",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 15),
-
-              // Confirm Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E8B6D),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const SuccessScreen()),
-                    );
-                  },
-                  child: const Text(
-                    "I Have Made Payment",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 15),
-              const Text(
-                "After sending money, your payment will be verified automatically within a few minutes.",
-                style: TextStyle(color: Colors.black54, fontSize: 14),
-                textAlign: TextAlign.start,
-              ),
-            ]
           ],
         ),
       ),
     );
   }
 
-  Widget buildDetailRow(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title,
-              style:
-              const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-          Flexible(
-            child: Text(
-              value,
-              style:
-              const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.visible,
-              softWrap: true,
-            ),
+  void _showExitConfirmation() {
+    if (_paymentCompleted) {
+      Navigator.pop(context);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Payment?'),
+        content: const Text('Are you sure you want to cancel this payment?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Continue Payment'),
+          ),
+          TextButton(
+            onPressed: () {
+              _cancelPayment();
+            },
+            child: const Text('Cancel Payment', style: TextStyle(color: Colors.red)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ================= SUCCESS SCREEN =================
-class SuccessScreen extends StatelessWidget {
-  const SuccessScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE5F6EC),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF2E8B6D),
-                  size: 80,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              const Text(
-                "Payment Successful !",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "Yay !! Your item is on its way",
-                style: TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 32),
-
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E8B6D),
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text("Back to Home"),
-              ),
-              const SizedBox(height: 12),
-
-              TextButton(
-                onPressed: () {},
-                child: const Text(
-                  "View Receipt",
-                  style: TextStyle(color: Color(0xFF2E8B6D)),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -1,77 +1,56 @@
 import 'package:flutter/material.dart';
+import '../../services/customer_services.dart';
+import '../../models/customer_models.dart';
 
 class ServiceHistoryScreen extends StatefulWidget {
+  final CustomerService customerService;
+
+  const ServiceHistoryScreen({
+    super.key,
+    required this.customerService,
+  });
+
   @override
-  _ServiceHistoryScreenState createState() => _ServiceHistoryScreenState();
+  State<ServiceHistoryScreen> createState() => _ServiceHistoryScreenState();
 }
 
 class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
-  String selectedFilter = "All";
+  List<CustomerOrder> _orders = [];
+  bool _isLoading = true;
+  String _error = '';
+  String _source = ''; // To show where data came from
 
-  // Dummy service history list
-  final List<Map<String, String>> services = [
-    {
-      "title": "Errand service",
-      "desc": "Package delivery at Utiblog",
-      "date": "25/03/25 10:00am",
-      "price": "₦12,000",
-      "status": "Completed",
-      "image": "https://via.placeholder.com/150"
-    },
-    {
-      "title": "Babysitting service",
-      "desc": "Package delivery at Utiblog",
-      "date": "25/03/25 10:00am",
-      "price": "₦12,000",
-      "status": "Processing",
-      "image": "https://via.placeholder.com/150"
-    },
-    {
-      "title": "Errand service",
-      "desc": "Package delivery at Utiblog",
-      "date": "25/03/25 10:00am",
-      "price": "₦12,000",
-      "status": "Completed",
-      "image": "https://via.placeholder.com/150"
-    },
-  ];
-
-  void _showFilterOverlay() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (BuildContext context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildFilterOption("All"),
-              _buildFilterOption("Errand services"),
-              _buildFilterOption("Babysitting Service"),
-              _buildFilterOption("Laundry Service"),
-              _buildFilterOption("Professional Service"),
-              _buildFilterOption("Booking Service"),
-              _buildFilterOption("Others"),
-            ],
-          ),
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadServiceHistory();
   }
 
-  Widget _buildFilterOption(String title) {
-    return ListTile(
-      title: Text(title),
-      onTap: () {
-        setState(() {
-          selectedFilter = title;
-        });
-        Navigator.pop(context);
-      },
-    );
+  Future<void> _loadServiceHistory() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = '';
+        _source = '';
+      });
+
+      print('🔄 Loading service history...');
+      final orders = await widget.customerService.getCustomerServiceHistory();
+
+      setState(() {
+        _orders = orders;
+        _isLoading = false;
+        _source = 'API';
+        print('✅ Service history loaded: ${orders.length} orders');
+      });
+    } catch (e) {
+      print('❌ Error loading service history: $e');
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+        _source = 'Error';
+      });
+    }
   }
 
   @override
@@ -81,150 +60,256 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Container(
-          padding: EdgeInsets.only(top: 8), // Added top padding to push content down
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: 4), // Added extra spacing
-              Text("Search your Orders",
-                  style: TextStyle(color: Colors.black, fontSize: 16)),
-              SizedBox(height: 8), // Increased spacing
-              GestureDetector(
-                onTap: _showFilterOverlay,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10), // Increased vertical padding
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(selectedFilter,
-                            style: TextStyle(color: Colors.black)),
-                      ),
-                      Icon(Icons.keyboard_arrow_down, color: Colors.black54),
-                    ],
-                  ),
+        title: const Text(
+          "Service History",
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          if (_source.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Chip(
+                label: Text(
+                  _source == 'API' ? 'Live Data' : 'Sample Data',
+                  style: const TextStyle(fontSize: 12),
                 ),
+                backgroundColor: _source == 'API' ? Colors.green.shade100 : Colors.orange.shade100,
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: _loadServiceHistory,
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.green),
+            SizedBox(height: 16),
+            Text(
+              'Loading your service history...',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_error.isNotEmpty && _orders.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off, color: Colors.grey[400], size: 64),
+              const SizedBox(height: 16),
+              const Text(
+                'Connection Issue',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Using sample data for demonstration',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _loadServiceHistory,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Try Again'),
               ),
             ],
           ),
         ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(top: 8, right: 8), // Added padding to action icon
-            child: IconButton(
-              icon: Icon(Icons.notifications_none, color: Colors.black),
-              onPressed: () {},
+      );
+    }
+
+    return Column(
+      children: [
+        // Info banner if using sample data
+        if (_source == 'Sample Data')
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            color: Colors.orange.shade50,
+            child: Row(
+              children: [
+                Icon(Icons.info, color: Colors.orange.shade700, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Showing sample data. Backend integration in progress.',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(16),
+
+        // Orders list
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadServiceHistory,
+            color: Colors.green,
+            child: _orders.isEmpty
+                ? _buildEmptyState()
+                : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  "Your Service History (${_orders.length})",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ..._orders.map((order) => _buildServiceCard(order)).toList(),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text("Recent History ($selectedFilter)",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          SizedBox(height: 10),
-          ...services
-              .where((s) =>
-          selectedFilter == "All" ||
-              s["title"]!.contains(selectedFilter))
-              .map((service) => _buildServiceCard(service))
-              .toList(),
+          Icon(
+            Icons.history_toggle_off,
+            color: Colors.grey[400],
+            size: 64,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No Service History',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Your completed services will appear here',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildServiceCard(Map<String, String> service) {
+  Widget _buildServiceCard(CustomerOrder order) {
     return Card(
-      margin: EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image section
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                service["image"]!,
-                height: 50,
-                width: 50,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 50,
-                    width: 50,
-                    color: Colors.grey[300],
-                    child: Icon(Icons.error_outline, color: Colors.grey[600]),
-                  );
-                },
-              ),
-            ),
-            SizedBox(width: 12),
-
-            // Main content - wrapped in Expanded to prevent overflow
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(service["title"]!,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis),
-                  SizedBox(height: 4),
-                  Text(service["desc"]!,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      overflow: TextOverflow.ellipsis),
-                  SizedBox(height: 4),
-                  Text(service["date"]!,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      overflow: TextOverflow.ellipsis),
-                  SizedBox(height: 4),
-                  Text(service["price"]!,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-
-            SizedBox(width: 8),
-
-            // Status and action section
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  constraints: BoxConstraints(maxWidth: 100), // Limit width
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: service["status"] == "Completed"
-                        ? Colors.green.shade100
-                        : Colors.orange.shade100,
-                    borderRadius: BorderRadius.circular(12),
+                Text(
+                  order.serviceCategory,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: Text(service["status"]!,
-                      style: TextStyle(
-                        color: service["status"] == "Completed"
-                            ? Colors.green
-                            : Colors.orange,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12, // Smaller font for status
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center),
                 ),
-                SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () {
-                    // TODO: navigate to details page
-                  },
-                  child: Text("See More",
-                      style: TextStyle(color: Colors.blue, fontSize: 12)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: order.statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        order.statusIcon,
+                        color: order.statusColor,
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        order.statusText,
+                        style: TextStyle(
+                          color: order.statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              order.description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  order.location,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  order.formattedPrice,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                Text(
+                  order.timeAgo,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
                 ),
               ],
             ),

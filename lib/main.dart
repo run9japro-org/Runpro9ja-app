@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:runpro_9ja/screens/home_screens/carousel_screen.dart';
 import 'package:runpro_9ja/screens/home_screens/otp_screen.dart';
 import 'package:runpro_9ja/screens/home_screens/profile_screen.dart';
+import 'package:runpro_9ja/screens/login_screen.dart';
 import 'package:runpro_9ja/screens/service_history_screen.dart';
 import 'package:runpro_9ja/screens/home_screens/signup_screen.dart';
 import 'package:runpro_9ja/screens/home_screens/splash_screen.dart';
@@ -13,6 +14,8 @@ import 'package:runpro_9ja/screens/home_screens/home_screen.dart';
 import 'package:runpro_9ja/screens/support_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:runpro_9ja/services/customer_services.dart';
+import 'auth/Auth_services/auth_service.dart';
 import 'firebase_options.dart'; // from flutterfire configure
 
 void main() async {
@@ -37,6 +40,7 @@ class MyApp extends StatelessWidget {
         '/welcome': (context) => WelcomeScreen(),
         '/onboarding': (context) => OnboardingScreen(),
         '/signup': (context) => SignupScreen(),
+        '/login':(context)=> CustomerLoginPage(),
         '/verified': (context) => VerifiedPage(),
         '/main': (context) => MainPage(),
       },onGenerateRoute: (settings) {
@@ -66,7 +70,7 @@ class _MainPageState extends State<MainPage> {
 
   final List<Widget> _pages = [
     HomeScreen(),
-    ServiceHistoryScreen(),
+    ServiceHistoryScreen(customerService: CustomerService(AuthService()),),
     SupportScreen(),
     ProfileScreen()
   ];

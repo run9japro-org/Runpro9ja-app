@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:runpro_9ja/screens/payment_screens/payment_screen.dart';
+import 'package:runpro_9ja/screens/agents_screen/available_agent_screen.dart';
+
+import '../../models/agent_model.dart';
 
 class MoversApp extends StatelessWidget {
   const MoversApp({super.key});
@@ -56,7 +58,7 @@ class MoversTypePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(onPressed: () {}, icon: const Icon(Icons.arrow_back)),
+        leading: const BackButton(),
         title: const Text('Movers Type',
             style: TextStyle(fontWeight: FontWeight.w600)),
         centerTitle: true,
@@ -125,44 +127,53 @@ class MoversTypePage extends StatelessWidget {
   // ============ FLOW HELPERS ============
 
   Future<void> _openSmallMoveFlow(BuildContext context) async {
-    await _openScheduleStep2(context, goToSmallMove: true);
-  }
+    // For small move, collect addresses first, then schedule, then show instant move
+    final addressData = await _openAddressStep(context);
+    if (addressData == null) return; // User cancelled
 
-  Future<void> _openScheduleFlow(BuildContext context) async {
-    await _openScheduleStep1(context, goToSmallMove: false);
-  }
+    final scheduleData = await _openScheduleStep(context);
+    if (scheduleData == null) return; // User cancelled
 
-  Future<void> _openScheduleStep1(BuildContext context,
-      {required bool goToSmallMove}) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 12,
-          bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: _ScheduleStep1(
-          onContinue: () {
-            Navigator.of(ctx).pop();
-            if (goToSmallMove) {
-              _openInstantMoveOverlay(context);
-            }
-          },
-        ),
-      ),
+    // Combine all data and open instant move
+    _openInstantMoveOverlay(
+      context,
+      fromAddress: addressData['fromAddress'],
+      toAddress: addressData['toAddress'],
+      vehicleType: scheduleData['vehicleType'],
+      date: scheduleData['date'],
+      timeFrom: scheduleData['timeFrom'],
+      timeTo: scheduleData['timeTo'],
     );
   }
 
-  Future<void> _openScheduleStep2(BuildContext context,
-      {required bool goToSmallMove}) {
-    return showModalBottomSheet(
+  Future<void> _openScheduleFlow(BuildContext context) async {
+    // For scheduled moves, collect addresses first, then schedule
+    final addressData = await _openAddressStep(context);
+    if (addressData == null) return;
+
+    final scheduleData = await _openScheduleStep(context);
+    if (scheduleData == null) return;
+
+    // For scheduled moves, go directly to order summary
+    _showScheduledMoveSummary(
+      context,
+      fromAddress: addressData['fromAddress'],
+      toAddress: addressData['toAddress'],
+      vehicleType: scheduleData['vehicleType'],
+      date: scheduleData['date'],
+      timeFrom: scheduleData['timeFrom'],
+      timeTo: scheduleData['timeTo'],
+      moveType: 'apartment', // You can determine this based on which tile was tapped
+    );
+  }
+
+  // STEP 1: Collect Addresses
+  Future<Map<String, dynamic>?> _openAddressStep(BuildContext context) {
+    final TextEditingController fromController = TextEditingController();
+    final TextEditingController toController = TextEditingController();
+    final TextEditingController floorController = TextEditingController();
+
+    return showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -181,7 +192,7 @@ class MoversTypePage extends StatelessWidget {
           children: [
             _sheetHandle(),
             const SizedBox(height: 6),
-            const Text('Schedule your move',
+            const Text('Enter Addresses',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
             const SizedBox(height: 10),
             Container(
@@ -191,32 +202,82 @@ class MoversTypePage extends StatelessWidget {
                 color: const Color(0xFF2E8B6D),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text("Client's Info:",
+              child: const Text("Pickup & Delivery Addresses",
                   style: TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 12),
-            const _LabeledField(label: 'From', hint: 'Type address here'),
+            _LabeledField(
+              label: 'From Address',
+              hint: 'Enter pickup address',
+              controller: fromController,
+            ),
             const SizedBox(height: 10),
-            const _LabeledField(label: 'To', hint: 'Type address here'),
+            _LabeledField(
+              label: 'To Address',
+              hint: 'Enter delivery address',
+              controller: toController,
+            ),
             const SizedBox(height: 10),
-            const _LabeledField(label: 'Building floor', hint: 'Type number here'),
+            _LabeledField(
+              label: 'Building floor (Optional)',
+              hint: 'Floor number if any',
+              controller: floorController,
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
-                onPressed: () {
+              onPressed: () {
+                if (fromController.text.isEmpty || toController.text.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Please enter both addresses')),
+                  );
+                  return;
+                }
 
-                    Navigator.of(ctx).pop();
-                    _openScheduleStep1(context, goToSmallMove: goToSmallMove);
-
-                },
-                child: const Text('Continue')),
+                Navigator.of(ctx).pop({
+                  'fromAddress': fromController.text,
+                  'toAddress': toController.text,
+                  'buildingFloor': floorController.text,
+                });
+              },
+              child: const Text('Continue to Schedule'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _openInstantMoveOverlay(BuildContext context) {
+  // STEP 2: Collect Schedule Details
+  Future<Map<String, dynamic>?> _openScheduleStep(BuildContext context) {
+    return showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => ScheduleStep(
+        onContinue: (scheduleData) {
+          Navigator.of(ctx).pop(scheduleData);
+        },
+      ),
+    );
+  }
+
+  // INSTANT MOVE OVERLAY (for Small Move)
+  Future<void> _openInstantMoveOverlay(
+      BuildContext context, {
+        required String fromAddress,
+        required String toAddress,
+        required String vehicleType,
+        required String date,
+        required String timeFrom,
+        required String timeTo,
+      }) {
+    final TextEditingController itemsController = TextEditingController();
+    final totalAmount = 17500.00; // Sample amount
+
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -236,22 +297,29 @@ class MoversTypePage extends StatelessWidget {
           children: [
             _sheetHandle(),
             const SizedBox(height: 6),
-            const Text('Small Move',
+            const Text('Small Move - Item Details',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
             const SizedBox(height: 14),
 
-            // 🔥 Replace "From" and "To" fields with AddressCard
-            const AddressCard(
-              fromAddress: "22, Tejuosho market, Idi araba Lagos....",
-              toAddress: "19, New Abule egba Road, Abeokuta ex...",
+            // Address Card with ACTUAL addresses
+            AddressCard(
+              fromAddress: fromAddress,
+              toAddress: toAddress,
+            ),
+
+            const SizedBox(height: 10),
+            Text(
+              'Scheduled: $date, $timeFrom - $timeTo • Vehicle: ${vehicleType.capitalize()}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
 
             const SizedBox(height: 10),
             TextFormField(
+              controller: itemsController,
               maxLines: 4,
               decoration: const InputDecoration(
-                hintText:
-                'Please describe what you need moved in details and if you will be on-site to assist the mover',
+                hintText: 'Please describe what you need moved in details...',
+                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -259,16 +327,61 @@ class MoversTypePage extends StatelessWidget {
               onPressed: () {
                 Navigator.of(ctx).pop();
                 showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (c) => const OrderDetailsOverlay(),
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (c) => OrderDetailsOverlay(
+                    fromAddress: fromAddress,
+                    toAddress: toAddress,
+                    moveType: 'small',
+                    totalAmount: totalAmount,
+                    vehicleType: vehicleType,
+                    itemsDescription: itemsController.text,
+                    date: date,
+                    timeFrom: timeFrom,
+                    timeTo: timeTo,
+                  ),
                 );
               },
-              child: const Text('Continue'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E8B6D),
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: const Text('Review Order & Continue'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // SCHEDULED MOVE SUMMARY (for Apartment/Office moves)
+  void _showScheduledMoveSummary(
+      BuildContext context, {
+        required String fromAddress,
+        required String toAddress,
+        required String vehicleType,
+        required String date,
+        required String timeFrom,
+        required String timeTo,
+        required String moveType,
+      }) {
+    final totalAmount = 25000.00; // Sample amount for scheduled moves
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (c) => OrderDetailsOverlay(
+        fromAddress: fromAddress,
+        toAddress: toAddress,
+        moveType: moveType,
+        totalAmount: totalAmount,
+        vehicleType: vehicleType,
+        itemsDescription: 'Scheduled $moveType move',
+        date: date,
+        timeFrom: timeFrom,
+        timeTo: timeTo,
       ),
     );
   }
@@ -283,80 +396,137 @@ class MoversTypePage extends StatelessWidget {
   );
 }
 
-// ======= STEP 1 CONTENT (date/time/vehicle) =======
+// ======= SCHEDULE STEP =======
 
-class _ScheduleStep1 extends StatefulWidget {
-  const _ScheduleStep1({required this.onContinue});
-  final VoidCallback onContinue;
+class ScheduleStep extends StatefulWidget {
+  final Function(Map<String, dynamic>) onContinue;
+
+  const ScheduleStep({super.key, required this.onContinue});
 
   @override
-  State<_ScheduleStep1> createState() => _ScheduleStep1State();
+  State<ScheduleStep> createState() => _ScheduleStepState();
 }
 
-class _ScheduleStep1State extends State<_ScheduleStep1> {
-  int selectedVehicle = 1; // 0=Car,1=Van,2=Truck
+class _ScheduleStepState extends State<ScheduleStep> {
+  int selectedVehicle = 1;
+  final TextEditingController dateController = TextEditingController();
+  final TextEditingController timeFromController = TextEditingController();
+  final TextEditingController timeToController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      _sheetHandle(),
-      const SizedBox(height: 6),
-      const Text(
-        'Schedule your move',
-        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-      ),
-      const SizedBox(height: 12),
-
-// ✅ Wrap the whole section in a Column, not inside Expanded
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _LabeledField(label: 'Date', hint: '08:00'),
-          const SizedBox(height: 10),
-          const Text("Your Available Time",style: TextStyle(fontSize: 15),),
-          const SizedBox(height: 10,),
-          Row(
-            children: const [
-              Expanded(child: _LabeledField(label: 'From', hint: '08:00')),
-              SizedBox(width: 12),
-              Expanded(child: _LabeledField(label: 'To', hint: '12:00')),
+          _sheetHandle(),
+          const SizedBox(height: 6),
+          const Text(
+            'Schedule Your Move',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          ),
+          const SizedBox(height: 12),
+
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _LabeledField(
+                label: 'Move Date',
+                hint: 'e.g., August 16, 2025',
+                controller: dateController,
+              ),
+              const SizedBox(height: 10),
+              const Text("Your Available Time", style: TextStyle(fontSize: 15)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _LabeledField(
+                      label: 'From',
+                      hint: '4:00 PM',
+                      controller: timeFromController,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _LabeledField(
+                      label: 'To',
+                      hint: '6:00 PM',
+                      controller: timeToController,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
 
-      const SizedBox(height: 12),
-      const Align(
-          alignment: Alignment.centerLeft,
-          child: Text('Select vehicle type',
-              style: TextStyle(fontWeight: FontWeight.w700))),
-      const SizedBox(height: 10),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _VehicleSelect(
-            icon: Icons.directions_car,
-            label: 'Car',
-            selected: selectedVehicle == 0,
-            onTap: () => setState(() => selectedVehicle = 0),
+          const SizedBox(height: 12),
+          const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Select Vehicle Type',
+                  style: TextStyle(fontWeight: FontWeight.w700))),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _VehicleSelect(
+                icon: Icons.directions_car,
+                label: 'Car',
+                selected: selectedVehicle == 0,
+                onTap: () => setState(() => selectedVehicle = 0),
+              ),
+              _VehicleSelect(
+                icon: Icons.airport_shuttle,
+                label: 'Van',
+                selected: selectedVehicle == 1,
+                onTap: () => setState(() => selectedVehicle = 1),
+              ),
+              _VehicleSelect(
+                icon: Icons.local_shipping,
+                label: 'Truck',
+                selected: selectedVehicle == 2,
+                onTap: () => setState(() => selectedVehicle = 2),
+              ),
+            ],
           ),
-          _VehicleSelect(
-            icon: Icons.airport_shuttle, // van-like
-            label: 'Van',
-            selected: selectedVehicle == 1,
-            onTap: () => setState(() => selectedVehicle = 1),
-          ),
-          _VehicleSelect(
-            icon: Icons.local_shipping,
-            label: 'Truck',
-            selected: selectedVehicle == 2,
-            onTap: () => setState(() => selectedVehicle = 2),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              if (dateController.text.isEmpty ||
+                  timeFromController.text.isEmpty ||
+                  timeToController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill all schedule fields')),
+                );
+                return;
+              }
+
+              widget.onContinue({
+                'date': dateController.text,
+                'timeFrom': timeFromController.text,
+                'timeTo': timeToController.text,
+                'vehicleType': _getVehicleType(selectedVehicle),
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E8B6D),
+              minimumSize: const Size(double.infinity, 50),
+            ),
+            child: const Text('Continue'),
           ),
         ],
       ),
-      const SizedBox(height: 16),
-      ElevatedButton(onPressed: widget.onContinue, child: const Text('Continue')),
-    ]);
+    );
+  }
+
+  String _getVehicleType(int index) {
+    switch (index) {
+      case 0: return 'car';
+      case 1: return 'van';
+      case 2: return 'truck';
+      default: return 'van';
+    }
   }
 
   Widget _sheetHandle() => Container(
@@ -369,19 +539,182 @@ class _ScheduleStep1State extends State<_ScheduleStep1> {
   );
 }
 
-// ======= REUSABLES =======
+// ======= ORDER DETAILS OVERLAY (FIXED) =======
+
+class OrderDetailsOverlay extends StatelessWidget {
+  final String fromAddress;
+  final String toAddress;
+  final String moveType;
+  final double totalAmount;
+  final String vehicleType;
+  final String itemsDescription;
+  final String date;
+  final String timeFrom;
+  final String timeTo;
+
+  const OrderDetailsOverlay({
+    super.key,
+    required this.fromAddress,
+    required this.toAddress,
+    required this.moveType,
+    required this.totalAmount,
+    required this.vehicleType,
+    required this.itemsDescription,
+    required this.date,
+    required this.timeFrom,
+    required this.timeTo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Order Summary",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              )
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // From/To Card with ACTUAL addresses
+          AddressCard(
+            fromAddress: fromAddress,
+            toAddress: toAddress,
+          ),
+          const SizedBox(height: 12),
+
+          // Schedule & Vehicle Info
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F7F7),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                _detailRow("Move Type", _getMoveTypeDisplay(moveType)),
+                _detailRow("Vehicle", vehicleType.capitalize()),
+                _detailRow("Scheduled Date", date),
+                _detailRow("Time Slot", '$timeFrom - $timeTo'),
+                if (itemsDescription.isNotEmpty)
+                  _detailRow("Items Description", itemsDescription),
+                const Divider(),
+                _detailRow("Total Amount", "₦${totalAmount.toStringAsFixed(2)}", bold: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Proceed to Agent Selection Button
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close the overlay
+              _proceedToAgentSelection(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E8B6D),
+              minimumSize: const Size(double.infinity, 50),
+            ),
+            child: const Text("Find Moving Agents & Continue"),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _proceedToAgentSelection(BuildContext context) {
+    final orderData = {
+      'serviceType': 'movers',
+      'moveType': moveType,
+      'fromAddress': fromAddress,
+      'toAddress': toAddress,
+      'vehicleType': vehicleType,
+      'totalAmount': totalAmount,
+      'itemsDescription': itemsDescription,
+      'scheduledDate': date,
+      'scheduledTime': '$timeFrom - $timeTo',
+      'estimatedHours': 2,
+      'numberOfMovers': 2,
+    };
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AgentSelectionScreen(
+          serviceType: 'moving',
+          orderData: orderData,
+          orderAmount: totalAmount,
+        ),
+      ),
+    );
+  }
+
+  String _getMoveTypeDisplay(String moveType) {
+    switch (moveType) {
+      case 'small': return 'Small Move';
+      case 'apartment': return 'Apartment Move';
+      case 'office': return 'Office Move';
+      case 'truck_only': return 'Truck/Labour Only';
+      default: return moveType;
+    }
+  }
+
+  Widget _detailRow(String label, String value, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+// ======= REUSABLE WIDGETS =======
 
 class _LabeledField extends StatelessWidget {
-  const _LabeledField({required this.label, this.hint});
   final String label;
   final String? hint;
+  final TextEditingController? controller;
+
+  const _LabeledField({required this.label, this.hint, this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
       const SizedBox(height: 6),
-      TextFormField(decoration: InputDecoration(hintText: hint)),
+      TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          hintText: hint,
+          border: const OutlineInputBorder(),
+        ),
+      ),
     ]);
   }
 }
@@ -447,7 +780,7 @@ class AddressCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2E8B6D), // green background
+        color: const Color(0xFF2E8B6D),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -465,7 +798,7 @@ class AddressCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "From",
+                      "PICKUP FROM",
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -479,7 +812,6 @@ class AddressCard extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -489,22 +821,17 @@ class AddressCard extends StatelessWidget {
 
           // Dotted Line
           Container(
-            margin: const EdgeInsets.only(left: 8, top: 4, bottom: 4),
-            height: 30,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Flex(
-                  direction: Axis.vertical,
-                  children: List.generate(
-                    10,
-                        (index) =>  Container(
-                          width: 2,
-                      height: 2,
-                          color: Colors.white,
-                    ),
+            margin: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
+            height: 20,
+            child: Row(
+              children: [
+                const SizedBox(width: 4),
+                Expanded(
+                  child: CustomPaint(
+                    painter: DottedLinePainter(),
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
 
@@ -519,7 +846,7 @@ class AddressCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "To",
+                      "DELIVER TO",
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -533,7 +860,6 @@ class AddressCard extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -545,162 +871,489 @@ class AddressCard extends StatelessWidget {
     );
   }
 }
-class OrderDetailsOverlay extends StatelessWidget {
-  const OrderDetailsOverlay({super.key});
+
+// Dotted Line Painter
+class DottedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.5;
+
+    const dashWidth = 4.0;
+    const dashSpace = 3.0;
+    double startY = 0;
+
+    while (startY < size.height) {
+      canvas.drawLine(
+        Offset(0, startY),
+        Offset(0, startY + dashWidth),
+        paint,
+      );
+      startY += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// String extension for capitalization
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
+// Add this after your AgentSelectionScreen in the movers_screen.dart
+
+// ======= ORDER CONFIRMATION SCREEN (with price details + agent) // ======= ORDER CONFIRMATION SCREEN (FIXED) =======
+class MoversOrderConfirmationScreen extends StatelessWidget {
+  final Map<String, dynamic> orderData;
+  final Agent selectedAgent;
+  final String serviceType;
+
+  const MoversOrderConfirmationScreen({
+    super.key,
+    required this.orderData,
+    required this.selectedAgent,
+    required this.serviceType,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final totalAmount = orderData['totalAmount'] ?? 0.0;
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Order Confirmation',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Success/Pending Icon
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.access_time,
+                color: Colors.orange,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Status Message
+            const Text(
+              'Order Sent to Agent!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              // FIX: Changed from selectedAgent.name to selectedAgent.displayName
+              'Your ${serviceType} order has been sent to ${selectedAgent.displayName} for approval',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 30),
+
+            // Order Details Card
+            _buildOrderDetailsCard(),
+            const SizedBox(height: 20),
+
+            // Price Breakdown
+            _buildPriceBreakdown(),
+            const SizedBox(height: 20),
+
+            // Selected Agent Card
+            _buildAgentCard(),
+            const SizedBox(height: 20),
+
+            // Next Steps
+            _buildNextSteps(),
+            const SizedBox(height: 30),
+
+            // Action Buttons
+            _buildActionButtons(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderDetailsCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("Order details",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              )
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // From/To Card (reuse your AddressCard)
-          const AddressCard(
-            fromAddress: "22, Tejuosho market, Idi araba Lagos...",
-            toAddress: "19 New Abule egba Road, Abeokuta ex...",
-          ),
-          const SizedBox(height: 12),
-
-          // Extra Info Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Row(children: [
-                Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                SizedBox(width: 6),
-                Text("Aug 16 2025\n4:00pm - 6:00pm",
-                    style: TextStyle(fontSize: 13)),
-              ]),
-              Text("1 Mover + 1 muscle\n21.9 miles",
-                  style: TextStyle(fontSize: 13)),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Price Details
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7F7F7),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: const [
-                _priceRow("Car", "₦7,500.00"),
-                _priceRow("Mover + muscle", "₦5,000.00"),
-                _priceRow("Total/hr", "₦12,500.00"),
-                _priceRow("Total/requested estimated hour", "₦10,000.00"),
-                Divider(),
-                _priceRow("Sub Total", "₦17,500.00", bold: true),
-              ],
+          const Text(
+            'Order Details',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
             ),
           ),
           const SizedBox(height: 16),
-
-          // Mover Card
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.grey,
-                  child: Icon(Icons.person, color: Colors.white),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Chibuzor Ebuzé",
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 14)),
-                      Text("Sienna 2005 9hr",
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.phone, color: Colors.green),
-                const SizedBox(width: 10),
-                const Icon(Icons.chat, color: Colors.green),
-                const SizedBox(width: 10),
-                Row(
-                  children: [
-                    Icon(Icons.star, size: 16, color: Colors.amber),
-                    Text("4.8",
-                        style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Proceed Button
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PaymentOptionScreen()
-                ),
-              );
-            },
-            child: const Text("Proceed to pay"),
-          )
+          _buildDetailRow('Service Type', 'Moving Service'),
+          _buildDetailRow('Move Type', orderData['moveType'] ?? 'Small Move'),
+          _buildDetailRow('From', orderData['fromAddress'] ?? ''),
+          _buildDetailRow('To', orderData['toAddress'] ?? ''),
+          _buildDetailRow('Vehicle', orderData['vehicleType'] ?? 'Van'),
+          if (orderData['scheduledDate'] != null)
+            _buildDetailRow('Scheduled Date', orderData['scheduledDate'] ?? ''),
+          if (orderData['scheduledTime'] != null)
+            _buildDetailRow('Time Slot', orderData['scheduledTime'] ?? ''),
+          _buildDetailRow('Status', 'Pending Agent Response',
+              valueColor: Colors.orange),
         ],
       ),
     );
   }
-}
 
-class _priceRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool bold;
-  const _priceRow(this.label, this.value, {this.bold = false, super.
-  key});
+  Widget _buildPriceBreakdown() {
+    final basePrice = (orderData['totalAmount'] ?? 0.0) * 0.7;
+    final serviceFee = (orderData['totalAmount'] ?? 0.0) * 0.2;
+    final taxFee = (orderData['totalAmount'] ?? 0.0) * 0.1;
+    final totalAmount = orderData['totalAmount'] ?? 0.0;
 
-  @override
-  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F7F7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Price Breakdown',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildPriceRow('Moving Service Fee', basePrice),
+          _buildPriceRow('Platform Service Fee', serviceFee),
+          _buildPriceRow('Tax & Insurance', taxFee),
+          const Divider(height: 20),
+          _buildPriceRow('Total Amount', totalAmount, isTotal: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgentCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.green.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Selected Agent',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 25,
+                backgroundColor: Colors.grey[300],
+                // FIX: Updated profile image handling
+                backgroundImage: selectedAgent.profileImage.isNotEmpty
+                    ? NetworkImage('https://runpro9ja-backend.onrender.com${selectedAgent.profileImage}')
+                    : null,
+                child: selectedAgent.profileImage.isEmpty
+                    ? const Icon(Icons.person, color: Colors.grey)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // FIX: Changed from selectedAgent.name to selectedAgent.displayName
+                    Text(
+                      selectedAgent.displayName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.star, color: Colors.amber[600], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${selectedAgent.rating} • ${selectedAgent.completedJobs} jobs completed',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    // FIX: Changed from selectedAgent.location to selectedAgent.displayLocation
+                    Text(
+                      selectedAgent.displayLocation,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E8B6D),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  '₦${selectedAgent.price.toStringAsFixed(0)}/hr',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // FIX: Updated bio handling
+          if (selectedAgent.bio.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              selectedAgent.bio,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextSteps() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'What happens next?',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.orange,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // FIX: Changed from selectedAgent.name to selectedAgent.displayName
+          _buildNextStepItem('1. Order sent to ${selectedAgent.displayName} for review'),
+          _buildNextStepItem('2. Agent will accept or decline within 24 hours'),
+          _buildNextStepItem('3. You\'ll be notified when agent responds'),
+          _buildNextStepItem('4. Payment will be processed after acceptance'),
+          _buildNextStepItem('5. Agent will contact you to confirm details'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E8B6D),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Payment will be available after agent accepts your order'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            },
+            child: const Text(
+              'Proceed to Payment (After Acceptance)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              side: const BorderSide(color: Color(0xFF2E8B6D)),
+            ),
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/home',
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Back to Home',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2E8B6D),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? Colors.black,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceRow(String label, double amount, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 16 : 14,
+            ),
+          ),
+          Text(
+            '₦${amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 16 : 14,
+              color: isTotal ? const Color(0xFF2E8B6D) : Colors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextStepItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.access_time, color: Colors.orange, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
         ],
       ),
     );

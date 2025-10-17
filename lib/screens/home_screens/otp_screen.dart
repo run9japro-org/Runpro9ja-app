@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../auth/authcontroller/auth_controller.dart';
+import '../../auth/Auth_services/auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
   final String userId; // comes from signup
