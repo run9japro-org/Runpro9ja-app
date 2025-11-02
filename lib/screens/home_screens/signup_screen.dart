@@ -39,6 +39,11 @@ class _SignupScreenState extends State<SignupScreen> {
     final authService = AuthService();
 
     try {
+      // Convert date from DD/MM/YYYY to YYYY-MM-DD format
+      final dobText = _controllers['dob']!.text.trim();
+      final dobParts = dobText.split('/');
+      final formattedDob = '${dobParts[2]}-${dobParts[1]}-${dobParts[0]}'; // YYYY-MM-DD
+
       final data = {
         "role": "customer",
         "fullName": _controllers['name']!.text.trim(),
@@ -46,17 +51,14 @@ class _SignupScreenState extends State<SignupScreen> {
         "phone": _controllers['phone']!.text.trim(),
         "password": _controllers['password']!.text.trim(),
         "location": _controllers['location']!.text.trim(),
-        "dob": _controllers['dob']!.text.trim(), // dd/mm/yyyy
+        "dob": formattedDob, // Now in YYYY-MM-DD format
       };
 
-      print('📝 Registration data: $data');
+      print('Sending data: $data'); // Debug print
 
       final response = await authService.register(data);
 
-      print('📡 Registration response: $response');
-
       if (response['success'] == true) {
-        print('✅ Registration successful, navigating to OTP screen');
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -65,19 +67,21 @@ class _SignupScreenState extends State<SignupScreen> {
         ).then((_) {
           _controllers.forEach((_, controller) => controller.clear());
         });
+
+        if (!mounted) return;
+
       } else {
-        print('❌ Registration failed: ${response['message']}');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(response['message'] ?? "Signup failed")),
         );
       }
     } catch (e) {
-      print('💥 Registration error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
       );
+      print(e);
     } finally {
       setState(() => _isLoading = false);
     }

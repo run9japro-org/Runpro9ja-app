@@ -52,7 +52,8 @@ class CustomerService {
 
       // Prepare order data - make sure serviceCategory is included
       final orderData = {
-        'serviceCategory': serviceCategory, // This should be the ObjectId from ServiceMapper
+        'serviceCategory':
+            serviceCategory, // This should be the ObjectId from ServiceMapper
         'details': details,
         'location': location,
         'urgency': urgency,
@@ -83,14 +84,17 @@ class CustomerService {
         print('✅ Order creation successful');
         return responseData;
       } else {
-        throw Exception('Failed to create professional order: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to create professional order: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('❌ Error creating professional order: $e');
       rethrow;
     }
   }
-// In your CustomerService class
+
+  // In your CustomerService class
   Future<void> assignAgentToOrder({
     required String orderId,
     required String agentId,
@@ -110,12 +114,12 @@ class CustomerService {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'agentId': agentId,
-        }),
+        body: json.encode({'agentId': agentId}),
       );
 
-      print('📊 Assign agent response: ${response.statusCode} - ${response.body}');
+      print(
+        '📊 Assign agent response: ${response.statusCode} - ${response.body}',
+      );
 
       if (response.statusCode != 200) {
         throw Exception('Failed to assign agent: ${response.statusCode}');
@@ -127,6 +131,7 @@ class CustomerService {
       rethrow;
     }
   }
+
   /// NEW: Select agent for minimum scale orders
   Future<Map<String, dynamic>> selectAgentForMinimumScale({
     required String orderId,
@@ -142,7 +147,9 @@ class CustomerService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Failed to select agent for minimum scale: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to select agent for minimum scale: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('Error selecting agent for minimum scale: $e');
@@ -161,7 +168,9 @@ class CustomerService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Failed to accept quotation: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to accept quotation: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('Error accepting quotation: $e');
@@ -184,7 +193,9 @@ class CustomerService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Failed to select agent: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to select agent: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('Error selecting agent: $e');
@@ -203,7 +214,9 @@ class CustomerService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Failed to fetch order details: ${response.statusCode}');
+        throw Exception(
+          'Failed to fetch order details: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('Error fetching order details: $e');
@@ -242,10 +255,7 @@ class CustomerService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-        };
+        return {'success': true, 'data': data};
       } else {
         return {
           'success': false,
@@ -253,10 +263,7 @@ class CustomerService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-      };
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
@@ -291,7 +298,9 @@ class CustomerService {
             if (orderJson is Map<String, dynamic>) {
               orders.add(CustomerOrder.fromJson(orderJson));
             } else if (orderJson is Map) {
-              orders.add(CustomerOrder.fromJson(Map<String, dynamic>.from(orderJson)));
+              orders.add(
+                CustomerOrder.fromJson(Map<String, dynamic>.from(orderJson)),
+              );
             }
           } catch (e) {
             print('❌ Error converting order: $e');
@@ -301,7 +310,9 @@ class CustomerService {
 
         return orders;
       } else {
-        throw Exception('Failed to load orders: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to load orders: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('❌ Error fetching customer orders: $e');
@@ -378,10 +389,7 @@ class CustomerService {
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
         scheduledDate: DateTime.now().subtract(const Duration(days: 2)),
         assignedAgent: 'agent123',
-        agent: {
-          'name': 'John Doe',
-          'profileImage': '/uploads/profile.jpg'
-        },
+        agent: {'name': 'John Doe', 'profileImage': '/uploads/profile.jpg'},
         isPublic: true,
         isDirectOffer: false,
       ),
@@ -395,10 +403,7 @@ class CustomerService {
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
         scheduledDate: DateTime.now().add(const Duration(hours: 2)),
         assignedAgent: 'agent456',
-        agent: {
-          'name': 'Jane Smith',
-          'profileImage': '/uploads/profile2.jpg'
-        },
+        agent: {'name': 'Jane Smith', 'profileImage': '/uploads/profile2.jpg'},
         isPublic: false,
         isDirectOffer: true,
       ),
@@ -414,7 +419,7 @@ class CustomerService {
         assignedAgent: 'agent789',
         agent: {
           'name': 'Mike Johnson',
-          'profileImage': '/uploads/profile3.jpg'
+          'profileImage': '/uploads/profile3.jpg',
         },
         isPublic: true,
         isDirectOffer: false,
@@ -423,6 +428,8 @@ class CustomerService {
   }
 
   // CREATE ORDER METHODS FOR DIFFERENT SERVICE TYPES
+
+  // UPDATE ALL ORDER CREATION METHODS TO MATCH BACKEND FIELDS
 
   Future<CustomerOrder> createErrandOrder({
     required String errandType,
@@ -436,21 +443,23 @@ class CustomerService {
     required String requestedAgentId,
   }) async {
     final orderData = {
-      'serviceType': 'errand',
-      'errandType': errandType,
-      'fromAddress': fromAddress,
-      'toAddress': toAddress,
-      'itemsDescription': itemsDescription,
+      'serviceCategory': '68eab134001131897a342dc9', // Errand service category ID
+      'details': itemsDescription,
+      'pickup': fromAddress,  // Changed from 'fromAddress'
+      'destination': toAddress, // Changed from 'toAddress'
       'totalAmount': totalAmount,
-      'receiverName': receiverName,
-      'receiverPhone': receiverPhone,
       'specialInstructions': specialInstructions,
       'status': 'pending_agent_response',
       'requestedAgent': requestedAgentId,
+      'orderType': 'normal', // ADD THIS - CRITICAL!
+      'urgency': 'standard',
+      // Remove serviceType and errandType - backend uses serviceCategory
     };
 
     // Remove null values
     orderData.removeWhere((key, value) => value == null);
+
+    print('📦 Errand order data: $orderData');
 
     final result = await _createOrder(orderData);
     return CustomerOrder.fromJson(result['order'] ?? result);
@@ -466,20 +475,24 @@ class CustomerService {
     required String requestedAgentId,
   }) async {
     final orderData = {
-      'serviceType': 'delivery',
-      'deliveryType': 'pickup_delivery',
-      'fromAddress': fromAddress,
-      'toAddress': toAddress,
-      'serviceLevel': serviceLevel,
+      'serviceCategory': '68eab134001131897a342dd2', // Delivery service category ID
+      'details': packageDescription ?? 'Delivery service',
+      'pickup': fromAddress,  // Changed from 'fromAddress'
+      'destination': toAddress, // Changed from 'toAddress'
       'totalAmount': totalAmount,
-      'packageDescription': packageDescription,
+      'serviceLevel': serviceLevel,
       'estimatedDeliveryTime': estimatedDeliveryTime,
       'status': 'pending_agent_response',
       'requestedAgent': requestedAgentId,
+      'orderType': 'normal', // ADD THIS - CRITICAL!
+      'urgency': 'standard',
+      // Remove serviceType and deliveryType - backend uses serviceCategory
     };
 
     // Remove null values
     orderData.removeWhere((key, value) => value == null);
+
+    print('📦 Delivery order data: $orderData');
 
     final result = await _createOrder(orderData);
     return CustomerOrder.fromJson(result['order'] ?? result);
@@ -498,47 +511,113 @@ class CustomerService {
     required String requestedAgentId,
   }) async {
     final orderData = {
-      'serviceType': 'movers',
-      'moveType': moveType,
-      'fromAddress': fromAddress,
-      'toAddress': toAddress,
-      'vehicleType': vehicleType,
-      'moveDate': moveDate.toIso8601String(),
-      'timeSlot': timeSlot,
+      'serviceCategory': '68eab135001131897a342ddb', // Moving service category ID
+      'details': itemsDescription ?? 'Moving service',
+      'pickup': fromAddress,  // Changed from 'fromAddress'
+      'destination': toAddress, // Changed from 'toAddress'
       'totalAmount': totalAmount,
-      'itemsDescription': itemsDescription,
+      'vehicleType': vehicleType,
+      'scheduledDate': moveDate.toIso8601String(),
+      'scheduledTime': timeSlot,
       'numberOfMovers': numberOfMovers,
       'status': 'pending_agent_response',
       'requestedAgent': requestedAgentId,
+      'orderType': 'normal', // ADD THIS - CRITICAL!
+      'urgency': 'standard',
+      // Remove serviceType and moveType - backend uses serviceCategory
     };
 
     // Remove null values
     orderData.removeWhere((key, value) => value == null);
 
+    print('📦 Movers order data: $orderData');
+
     final result = await _createOrder(orderData);
     return CustomerOrder.fromJson(result['order'] ?? result);
   }
 
-  // Generic order creation
-  Future<Map<String, dynamic>> _createOrder(Map<String, dynamic> orderData) async {
+// CORRECTED: Create Personal Assistance Order
+  Future<CustomerOrder> createPersonalAssistanceOrder({
+    required String category,
+    required String specificRole,
+    required String clientName,
+    required String generalLocation,
+    required String serviceAddress,
+    required String date,
+    required String startTime,
+    required String endTime,
+    required double totalAmount,
+    String? specialRequirements,
+    String? organization,
+    required String requestedAgentId,
+  }) async {
+    final orderData = {
+      'serviceCategory': '68eab136001131897a342df5', // Personal Assistance category ID
+      'details': 'Personal Assistance: $specificRole - $category for $clientName',
+      'location': serviceAddress,
+      'pickup': serviceAddress,
+      'destination': serviceAddress,
+      'totalAmount': totalAmount,
+      'scheduledDate': date,
+      'scheduledTime': '$startTime - $endTime',
+      'status': 'pending_agent_response',
+      'requestedAgent': requestedAgentId,
+      'orderType': 'normal', // CRITICAL!
+      'urgency': 'standard',
+      'specialInstructions': '''
+Category: $category
+Specific Role: $specificRole
+Client Name: $clientName
+General Location: $generalLocation
+Date: $date
+Time: $startTime - $endTime
+Special Requirements: ${specialRequirements ?? 'None'}
+Organization: ${organization ?? 'Not specified'}
+    ''',
+      // Remove serviceType - backend uses serviceCategory
+    };
+
+    print('📦 Personal assistance order data: $orderData');
+
+    final result = await _createOrder(orderData);
+    return CustomerOrder.fromJson(result['order'] ?? result);
+  }
+
+// UPDATE THE GENERIC ORDER CREATION TO ADD LOGGING
+  Future<Map<String, dynamic>> _createOrder(
+      Map<String, dynamic> orderData,
+      ) async {
     try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Not authenticated');
+
+      print('🚀 FINAL ORDER DATA BEING SENT:');
+      print('   Headers: Authorization: Bearer $token');
+      print('   Body: $orderData');
+
       final response = await http.post(
         Uri.parse('$baseUrl/api/orders'),
-        headers: await _getHeaders(),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
         body: json.encode(orderData),
       );
+
+      print('📊 Create order response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Failed to create order: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to create order: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
-      print('Error creating order: $e');
+      print('❌ Error creating order: $e');
       rethrow;
     }
   }
-
   // Add review to order
   Future<bool> addOrderReview({
     required String orderId,
@@ -549,10 +628,7 @@ class CustomerService {
       final response = await http.patch(
         Uri.parse('$baseUrl/api/orders/$orderId/review'),
         headers: await _getHeaders(),
-        body: json.encode({
-          'rating': rating,
-          'comment': comment,
-        }),
+        body: json.encode({'rating': rating, 'comment': comment}),
       );
 
       return response.statusCode == 200;
@@ -635,7 +711,8 @@ class CustomerService {
       }
 
       final queryString = Uri(queryParameters: queryParams).query;
-      final url = '$baseUrl/api/agents/available${queryString.isNotEmpty ? '?$queryString' : ''}';
+      final url =
+          '$baseUrl/api/agents/available${queryString.isNotEmpty ? '?$queryString' : ''}';
 
       final response = await http.get(
         Uri.parse(url),
@@ -646,7 +723,9 @@ class CustomerService {
         final data = json.decode(response.body);
         return data['agents'] ?? [];
       } else {
-        throw Exception('Failed to load recommended agents: ${response.statusCode}');
+        throw Exception(
+          'Failed to load recommended agents: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('Error fetching recommended agents: $e');

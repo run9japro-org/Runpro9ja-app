@@ -91,7 +91,8 @@ class SupportService {
   }
 
   // Send support message
-  Future<Map<String, dynamic>> sendSupportMessage(String message) async {
+  // services/support_service.dart - Updated sendSupportMessage
+  Future<Map<String, dynamic>> sendSupportMessage(String message, {String? receiverId}) async {
     try {
       final response = await http.post(
         Uri.parse("$baseUrl/api/support/send-message"),
@@ -101,24 +102,19 @@ class SupportService {
         },
         body: json.encode({
           'message': message,
-          'category': 'general_support'
+          'category': 'general_support',
+          'receiverId': receiverId,
         }),
       );
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        return {
-          'success': true,
-          'message': 'Message sent to support team'
-        };
+        throw Exception('Failed to send message: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error sending support message: $e');
-      return {
-        'success': true,
-        'message': 'Message sent to support team'
-      };
+      throw e; // Re-throw to handle in UI
     }
   }
 }

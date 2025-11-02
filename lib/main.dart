@@ -17,9 +17,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:runpro_9ja/services/customer_services.dart';
 import 'auth/Auth_services/auth_service.dart';
 import 'firebase_options.dart'; // from flutterfire configure
+import 'services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PushNotificationService.initialize();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

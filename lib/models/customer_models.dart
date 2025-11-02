@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-
-// models/customer_model.dart
 class CustomerProfile {
   final String id;
   final String fullName;
@@ -21,15 +19,53 @@ class CustomerProfile {
   });
 
   factory CustomerProfile.fromJson(Map<String, dynamic> json) {
+    print('🔄 Parsing CustomerProfile from JSON: ${json.keys.toList()}');
+
+    // Handle nested 'user' object or direct fields
+    final data = json['user'] ?? json;
+
     return CustomerProfile(
-      id: json['_id'] ?? json['id'] ?? '',
-      fullName: json['fullName'] ?? '',
-      email: json['email'] ?? '',
-      phone: json['phone'] ?? '',
-      profileImage: json['profileImage'],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      id: _parseString(data['_id']) ?? _parseString(data['id']) ?? '',
+      fullName: _parseString(data['fullName']) ??
+          _parseString(data['name']) ??
+          'Customer',
+      email: _parseString(data['email']) ?? 'No email',
+      phone: _parseString(data['phone']) ?? 'No phone',
+      profileImage: _parseString(data['profileImage']) ??
+          _parseString(data['avatarUrl']),
+      createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
+      updatedAt: _parseDateTime(data['updatedAt']) ?? DateTime.now(),
     );
+  }
+
+  // Helper method to safely parse strings
+  static String? _parseString(dynamic value) {
+    if (value == null) return null;
+    final stringValue = value.toString().trim();
+    return stringValue.isEmpty ? null : stringValue;
+  }
+
+  // Helper method to safely parse dates
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value.toString());
+    } catch (e) {
+      print('❌ Error parsing date: $value, error: $e');
+      return null;
+    }
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'fullName': fullName,
+      'email': email,
+      'phone': phone,
+      'profileImage': profileImage,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
   }
 }
 

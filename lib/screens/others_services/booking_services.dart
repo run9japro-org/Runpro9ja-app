@@ -1375,7 +1375,6 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
       });
     }
   }
-
   Future<void> _createPersonalAssistanceOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -1384,25 +1383,31 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
     });
 
     try {
-      // Calculate total amount based on hours (assuming 4 hours for demo)
+      // Validate that both location fields are filled
+      if (_locationController.text.isEmpty) {
+        throw Exception('Please enter your location');
+      }
+      if (_addressController.text.isEmpty) {
+        throw Exception('Please enter the service address');
+      }
+
+      // Calculate total amount based on hours
       final estimatedHours = _calculateEstimatedHours();
       final totalAmount = widget.assistant.price * estimatedHours;
 
-      // Create the order using your existing CustomerService
-      final order = await widget.customerService.createErrandOrder(
-        errandType: 'Personal Assistance',
-        fromAddress: _addressController.text,
-        toAddress: _addressController.text, // Same address for personal assistance
-        itemsDescription: 'Personal Assistance: ${_roleController.text}',
+      // Use the dedicated personal assistance method
+      final order = await widget.customerService.createPersonalAssistanceOrder(
+        category: widget.category,
+        specificRole: _roleController.text,
+        clientName: _nameController.text,
+        generalLocation: _locationController.text,
+        serviceAddress: _addressController.text,
+        date: _dateController.text,
+        startTime: _startTimeController.text,
+        endTime: _endTimeController.text,
         totalAmount: totalAmount,
-        specialInstructions: '''
-Category: ${widget.category}
-Specific Role: ${_roleController.text}
-Date: ${_dateController.text}
-Time: ${_startTimeController.text} - ${_endTimeController.text}
-Special Requirements: ${widget.specialRequirements ?? 'None'}
-Organization: ${_organizationController.text.isNotEmpty ? _organizationController.text : 'Not specified'}
-        ''',
+        specialRequirements: widget.specialRequirements,
+        organization: _organizationController.text,
         requestedAgentId: widget.assistant.id,
       );
 
@@ -1433,6 +1438,7 @@ Organization: ${_organizationController.text.isNotEmpty ? _organizationControlle
             backgroundColor: Colors.red,
           ),
         );
+        print('❌ Personal assistance order error: $e');
       }
     } finally {
       if (mounted) {
@@ -1442,7 +1448,6 @@ Organization: ${_organizationController.text.isNotEmpty ? _organizationControlle
       }
     }
   }
-
   double _calculateEstimatedHours() {
     // Simple calculation - in real app, parse the time difference
     // For now, return a default of 4 hours

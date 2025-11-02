@@ -20,6 +20,7 @@ class ProfileService {
   }
 
   // Get user profile from /api/customers/me
+  // Get user profile from /api/customers/me - UPDATED VERSION
   Future<Map<String, dynamic>> getUserProfile() async {
     try {
       final token = await getToken();
@@ -45,9 +46,14 @@ class ProfileService {
       print('📊 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final userData = json.decode(response.body);
+        final responseData = json.decode(response.body);
         print('✅ API call successful');
-        print('🔑 Response keys: ${userData.keys.toList()}');
+        print('🔑 Response keys: ${responseData.keys.toList()}');
+
+        // ✅ Handle both response structures:
+        // 1. If data is nested under 'user' key
+        // 2. If data is directly in the response
+        final userData = responseData['user'] ?? responseData;
 
         return {
           'success': true,
@@ -75,7 +81,6 @@ class ProfileService {
       };
     }
   }
-
   // Update user profile via /api/customers/me
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> profileData) async {
     try {
