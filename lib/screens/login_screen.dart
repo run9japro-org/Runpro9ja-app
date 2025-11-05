@@ -33,7 +33,11 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
   void initState() {
     super.initState();
     _checkBiometricAvailability();
-    _checkStoredCredentials();
+    Future.delayed(Duration.zero, () {
+      if (mounted) {
+        _checkStoredCredentials();
+      }
+    });
   }
 
   Future<void> _checkBiometricAvailability() async {
