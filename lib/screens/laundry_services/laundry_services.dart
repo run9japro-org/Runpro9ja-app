@@ -869,12 +869,27 @@ class _LaundryImmediateServiceOverlayState extends State<LaundryImmediateService
   final TextEditingController addressController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController instructionsController = TextEditingController();
-  final CustomerService _customerService = CustomerService(AuthService());
 
   bool _isSubmitting = false;
 
+  // REMOVE the callback approach - just navigate to agent selection
   Future<void> _proceedToAgentSelection() async {
     if (_isSubmitting) return;
+
+    // Validate input
+    if (addressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter pickup address')),
+      );
+      return;
+    }
+
+    if (phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter phone number')),
+      );
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -884,167 +899,171 @@ class _LaundryImmediateServiceOverlayState extends State<LaundryImmediateService
       // Prepare order data for agent selection
       final agentSelectionData = {
         ...widget.orderData,
-        'address': addressController.text,
-        'phone': phoneController.text,
-        'instructions': instructionsController.text,
-        'serviceType': widget.serviceType,
-        'location': addressController.text,
+        'address': addressController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'instructions': instructionsController.text.trim(),
+        'serviceType': 'immediate',
+        'location': addressController.text.trim(),
+        'description': _buildOrderDescription(),
       };
 
+      // Close the bottom sheet
       Navigator.pop(context);
+
+      // Navigate to agent selection WITHOUT callback
+      // Let AgentSelectionScreen handle everything
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => AgentSelectionScreen(
-          serviceType: 'laundry',
-          orderData: agentSelectionData,
-          orderAmount: widget.orderData['totalAmount'].toDouble(),
-          onAgentSelected: (agent, orderData) {
-            // Handle agent selection - create order and proceed to summary
-            _createOrderAndNavigate(agent, orderData);
-          },
-        )),
+        MaterialPageRoute(
+          builder: (_) => AgentSelectionScreen(
+            serviceType: 'laundry',
+            orderData: agentSelectionData,
+            orderAmount: widget.orderData['totalAmount'].toDouble(),
+            // NO onAgentSelected callback! Let the screen handle navigation
+          ),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
-    }
-  }
-
-
-  Future<void> _createOrderAndNavigate(Agent agent, Map<String, dynamic> orderData) async {
-    try {
-      // Use 'cleaning' service type to get the correct ObjectId
-      final serviceCategory = ServiceMapper.getCategoryId('cleaning');
-      if (serviceCategory == null) {
-        throw Exception('No service category found for cleaning service');
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
       }
-
-      final customerOrder = await _customerService.createProfessionalOrder(
-        serviceCategory: serviceCategory, // This will be '68eab135001131897a342de4'
-        details: _buildOrderDetails(orderData),
-        location: addressController.text,
-        urgency: 'high',
-      );
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => LaundryOrderSummaryScreen(
-          orderData: orderData,
-          address: addressController.text,
-          phone: phoneController.text,
-          instructions: instructionsController.text,
-          serviceType: widget.serviceType,
-          selectedAgent: agent,
-          customerOrder: customerOrder,
-        )),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating order: $e')),
-      );
     }
   }
 
+  String _buildOrderDescription() {
+    final selectedServices = widget.orderData['selectedServices'] as Map<String, int>;
+    final dryCleaningItems = widget.orderData['dryCleaningItems'] as List;
 
-  String _buildOrderDetails(Map<String, dynamic> orderData) {
-    final selectedServices = orderData['selectedServices'] as Map<String, int>;
-    final dryCleaningItems = orderData['dryCleaningItems'] as List;
-
-    final details = StringBuffer();
-    details.writeln('Laundry Service Order Details:');
+    final description = StringBuffer();
+    description.writeln('Immediate Laundry Service');
+    description.writeln('');
 
     if (selectedServices.isNotEmpty) {
-      details.writeln('Selected Services:');
+      description.writeln('Selected Services:');
       selectedServices.forEach((service, price) {
-        details.writeln('- $service: ₦$price');
+        description.writeln('- $service: ₦$price');
       });
+      description.writeln('');
     }
 
     if (dryCleaningItems.isNotEmpty) {
-      details.writeln('Dry Cleaning Items:');
+      description.writeln('Dry Cleaning Items:');
       for (var item in dryCleaningItems.where((item) => item["qty"] > 0)) {
-        details.writeln('- ${item["title"]} (x${item["qty"]}): ₦${(item["price"] as int) * (item["qty"] as int)}');
+        description.writeln('- ${item["title"]} (x${item["qty"]}): ₦${(item["price"] as int) * (item["qty"] as int)}');
       }
+      description.writeln('');
     }
 
     if (instructionsController.text.isNotEmpty) {
-      details.writeln('Special Instructions: ${instructionsController.text}');
+      description.writeln('Special Instructions:');
+      description.writeln(instructionsController.text);
+      description.writeln('');
     }
 
-    details.writeln('Total Amount: ₦${orderData['totalAmount']}');
+    description.writeln('Pickup within 2 hours');
+    description.writeln('Total Amount: ₦${widget.orderData['totalAmount']}');
 
-    return details.toString();
+    return description.toString();
   }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Immediate Laundry Service",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: addressController,
-            decoration: const InputDecoration(
-              labelText: "Pickup Address",
-              border: OutlineInputBorder(),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 20,
+        right: 20,
+        top: 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Immediate Laundry Service",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: phoneController,
-            decoration: const InputDecoration(
-              labelText: "Phone Number",
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.phone,
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: instructionsController,
-            decoration: const InputDecoration(
-              labelText: "Special Instructions",
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            "Service Details:",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          const Text("• Pickup within 2 hours"),
-          const Text("• Professional laundry service"),
-          const Text("• Delivery in 1-2 days"),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B5E20),
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-              onPressed: _isSubmitting ? null : _proceedToAgentSelection,
-              child: _isSubmitting
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                "Continue to Agent Selection",
-                style: TextStyle(color: Colors.white, fontSize: 16),
+            const SizedBox(height: 20),
+            TextField(
+              controller: addressController,
+              decoration: const InputDecoration(
+                labelText: "Pickup Address *",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_on),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 15),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(
+                labelText: "Phone Number *",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.phone),
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: instructionsController,
+              decoration: const InputDecoration(
+                labelText: "Special Instructions (Optional)",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.note),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Service Details:",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            const Text("• Pickup within 2 hours"),
+            const Text("• Professional laundry service"),
+            const Text("• Delivery in 1-2 days"),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B5E20),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+                onPressed: _isSubmitting ? null : _proceedToAgentSelection,
+                child: _isSubmitting
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  "Continue to Agent Selection",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -1065,20 +1084,77 @@ class LaundryScheduledServiceOverlay extends StatefulWidget {
   State<LaundryScheduledServiceOverlay> createState() => _LaundryScheduledServiceOverlayState();
 }
 
+// FIXED: LaundryScheduledServiceOverlay - Remove callback pattern
 class _LaundryScheduledServiceOverlayState extends State<LaundryScheduledServiceOverlay> {
   final TextEditingController addressController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController dateController = TextEditingController();
   final TextEditingController timeController = TextEditingController();
   final TextEditingController instructionsController = TextEditingController();
-  final CustomerService _customerService = CustomerService(AuthService());
 
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
   bool _isSubmitting = false;
 
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        selectedDate = picked;
+        dateController.text = "${picked.day}/${picked.month}/${picked.year}";
+      });
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        selectedTime = picked;
+        timeController.text = picked.format(context);
+      });
+    }
+  }
+
   Future<void> _proceedToAgentSelection() async {
-    if (_isSubmitting || selectedDate == null || selectedTime == null) return;
+    if (_isSubmitting) return;
+
+    // Validate input
+    if (addressController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter pickup address')),
+      );
+      return;
+    }
+
+    if (phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter phone number')),
+      );
+      return;
+    }
+
+    if (selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select pickup date')),
+      );
+      return;
+    }
+
+    if (selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select pickup time')),
+      );
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -1087,109 +1163,36 @@ class _LaundryScheduledServiceOverlayState extends State<LaundryScheduledService
     try {
       final agentSelectionData = {
         ...widget.orderData,
-        'address': addressController.text,
-        'phone': phoneController.text,
-        'instructions': instructionsController.text,
-        'serviceType': widget.serviceType,
+        'address': addressController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'instructions': instructionsController.text.trim(),
+        'serviceType': 'scheduled',
         'scheduledDate': selectedDate!.toIso8601String(),
         'scheduledTime': selectedTime!.format(context),
-        'location': addressController.text,
+        'location': addressController.text.trim(),
+        'description': _buildOrderDescription(),
       };
 
+      // Close the bottom sheet
       Navigator.pop(context);
+
+      // Navigate to agent selection WITHOUT callback
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => AgentSelectionScreen(
-          serviceType: 'laundry',
-          orderData: agentSelectionData,
-          orderAmount: widget.orderData['totalAmount'].toDouble(),
-          onAgentSelected: (agent, orderData) {
-            _createOrderAndNavigate(agent, orderData);
-          },
-        )),
+        MaterialPageRoute(
+          builder: (_) => AgentSelectionScreen(
+            serviceType: 'laundry',
+            orderData: agentSelectionData,
+            orderAmount: widget.orderData['totalAmount'].toDouble(),
+            // NO onAgentSelected callback!
+          ),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
-    }
-  }
-
-  Future<void> _createOrderAndNavigate(Agent agent, Map<String, dynamic> orderData) async {
-    try {
-      // Set loading state only if mounted
-      if (mounted) {
-        setState(() {
-          _isSubmitting = true;
-        });
-      }
-
-      // Use 'cleaning' service type to get the correct ObjectId
-      final serviceCategory = ServiceMapper.getCategoryId('cleaning');
-      if (serviceCategory == null) {
-        throw Exception('No service category found for cleaning service');
-      }
-
-      // Step 1: Create the order first
-      final customerOrderResponse = await _customerService.createProfessionalOrder(
-        serviceCategory: serviceCategory,
-        details: _buildOrderDetails(orderData),
-        location: addressController.text,
-        urgency: 'high',
-      );
-
-      // Convert the Map response to CustomerOrder object
-      final customerOrder = CustomerOrder.fromResponse(customerOrderResponse);
-
-      if (customerOrder == null) {
-        throw Exception('Could not create order from response: $customerOrderResponse');
-      }
-
-      print('✅ Laundry order created successfully with ID: ${customerOrder.id}');
-
-      // Step 2: Assign the selected agent to the order
-      try {
-        await _customerService.assignAgentToOrder(
-          orderId: customerOrder.id,
-          agentId: agent.id,
-        );
-        print('✅ Agent ${agent.displayName} assigned to order');
-      } catch (e) {
-        print('⚠️ Could not assign agent automatically: $e');
-        // Continue anyway - the agent can still accept manually
-      }
-
-      // Check if still mounted before navigating
-      if (!mounted) {
-        print('⚠️ Widget unmounted, skipping navigation');
-        return;
-      }
-
-      // Navigate to WAITING SCREEN
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => LaundryOrderWaitingScreen(
-          orderId: customerOrder.id,
-          selectedAgent: agent,
-          orderData: orderData,
-          customerOrder: customerOrder,
-        )),
-      );
-    } catch (e) {
-      print('❌ Error creating laundry order: $e');
-
-      // Only show error if still mounted
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating order: $e')),
-        );
-      }
-    } finally {
-      // Only update state if still mounted
       if (mounted) {
         setState(() {
           _isSubmitting = false;
@@ -1198,127 +1201,158 @@ class _LaundryScheduledServiceOverlayState extends State<LaundryScheduledService
     }
   }
 
-  String _buildOrderDetails(Map<String, dynamic> orderData) {
-    final selectedServices = orderData['selectedServices'] as Map<String, int>;
-    final dryCleaningItems = orderData['dryCleaningItems'] as List;
+  String _buildOrderDescription() {
+    final selectedServices = widget.orderData['selectedServices'] as Map<String, int>;
+    final dryCleaningItems = widget.orderData['dryCleaningItems'] as List;
 
-    final details = StringBuffer();
-    details.writeln('Scheduled Laundry Service Order Details:');
-    details.writeln('Pickup Date: ${selectedDate!.toIso8601String()}');
-    details.writeln('Pickup Time: ${selectedTime!.format(context)}');
+    final description = StringBuffer();
+    description.writeln('Scheduled Laundry Service');
+    description.writeln('Pickup Date: ${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}');
+    description.writeln('Pickup Time: ${selectedTime!.format(context)}');
+    description.writeln('');
 
     if (selectedServices.isNotEmpty) {
-      details.writeln('Selected Services:');
+      description.writeln('Selected Services:');
       selectedServices.forEach((service, price) {
-        details.writeln('- $service: ₦$price');
+        description.writeln('- $service: ₦$price');
       });
+      description.writeln('');
     }
 
     if (dryCleaningItems.isNotEmpty) {
-      details.writeln('Dry Cleaning Items:');
+      description.writeln('Dry Cleaning Items:');
       for (var item in dryCleaningItems.where((item) => item["qty"] > 0)) {
-        details.writeln('- ${item["title"]} (x${item["qty"]}): ₦${(item["price"] as int) * (item["qty"] as int)}');
+        description.writeln('- ${item["title"]} (x${item["qty"]}): ₦${(item["price"] as int) * (item["qty"] as int)}');
       }
+      description.writeln('');
     }
 
     if (instructionsController.text.isNotEmpty) {
-      details.writeln('Special Instructions: ${instructionsController.text}');
+      description.writeln('Special Instructions:');
+      description.writeln(instructionsController.text);
+      description.writeln('');
     }
 
-    details.writeln('Total Amount: ₦${orderData['totalAmount']}');
+    description.writeln('Total Amount: ₦${widget.orderData['totalAmount']}');
 
-    return details.toString();
+    return description.toString();
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Schedule Laundry Service",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: addressController,
-            decoration: const InputDecoration(
-              labelText: "Pickup Address",
-              border: OutlineInputBorder(),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 20,
+        right: 20,
+        top: 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Schedule Laundry Service",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: phoneController,
-            decoration: const InputDecoration(
-              labelText: "Phone Number",
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.phone,
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: dateController,
-            decoration: const InputDecoration(
-              labelText: "Pickup Date",
-              border: OutlineInputBorder(),
-              suffixIcon: Icon(Icons.calendar_today),
-            ),
-            readOnly: true,
-            onTap: () => _selectDate(context),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: timeController,
-            decoration: const InputDecoration(
-              labelText: "Pickup Time",
-              border: OutlineInputBorder(),
-              suffixIcon: Icon(Icons.access_time),
-            ),
-            readOnly: true,
-            onTap: () => _selectTime(context),
-          ),
-          const SizedBox(height: 15),
-          TextField(
-            controller: instructionsController,
-            decoration: const InputDecoration(
-              labelText: "Special Instructions",
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B5E20),
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-              onPressed: (selectedDate != null && selectedTime != null && !_isSubmitting)
-                  ? _proceedToAgentSelection
-                  : null,
-              child: _isSubmitting
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                "Continue to Agent Selection",
-                style: TextStyle(color: Colors.white, fontSize: 16),
+            const SizedBox(height: 20),
+            TextField(
+              controller: addressController,
+              decoration: const InputDecoration(
+                labelText: "Pickup Address *",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_on),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 15),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(
+                labelText: "Phone Number *",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.phone),
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: dateController,
+              decoration: const InputDecoration(
+                labelText: "Pickup Date *",
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+                prefixIcon: Icon(Icons.event),
+              ),
+              readOnly: true,
+              onTap: () => _selectDate(context),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: timeController,
+              decoration: const InputDecoration(
+                labelText: "Pickup Time *",
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.access_time),
+                prefixIcon: Icon(Icons.schedule),
+              ),
+              readOnly: true,
+              onTap: () => _selectTime(context),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: instructionsController,
+              decoration: const InputDecoration(
+                labelText: "Special Instructions (Optional)",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.note),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B5E20),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+                onPressed: (selectedDate != null &&
+                    selectedTime != null &&
+                    !_isSubmitting)
+                    ? _proceedToAgentSelection
+                    : null,
+                child: _isSubmitting
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  "Continue to Agent Selection",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
-
-  void _selectTime(BuildContext context) {}
-
-  void _selectDate(BuildContext context) {}
 }
-
 // Update the Laundry Order Summary Screen to use CustomerOrder
 class LaundryOrderSummaryScreen extends StatelessWidget {
   final Map<String, dynamic> orderData;

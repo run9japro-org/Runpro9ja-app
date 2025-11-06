@@ -1,4 +1,4 @@
-// screens/agent_selection_screen.dart - COMPLETELY FIXED VERSION
+// screens/agent_selection_screen.dart - COMPLETE FIXED VERSION
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import '../../utils/service_mapper.dart';
 import '../babysitting_services/babysitting_service.dart';
 import '../errand_services/movers_screen.dart';
 import '../errand_services/order_confirmation_screen.dart';
+import '../laundry_services/laundry_waiting_screen.dart'; // ADD THIS IMPORT
 
 const kGreen = Color(0xFF2E7D32);
 
@@ -64,7 +65,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
       print('✅ Loaded ${agents.length} agents');
 
-      // **ADDED: Debug agent data**
       if (agents.isNotEmpty) {
         print('🔍 FIRST AGENT DEBUG:');
         print('   - agent.id: ${agents[0].id}');
@@ -382,12 +382,14 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
         'totalAmount': widget.orderAmount,
       };
 
+      // **FIX: Handle callback navigation FIRST**
       if (widget.onAgentSelected != null) {
         print('🎯 Using custom callback for agent selection');
         widget.onAgentSelected!(_selectedAgent!, finalOrderData);
-        return;
+        return; // **RETURN here to prevent double navigation**
       }
 
+      // **Only continue with default flow if no callback**
       if (widget.nextScreen != null) {
         Navigator.pushReplacement(
           context,
@@ -401,13 +403,13 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
         finalOrderData['orderId'] = order.id;
 
         if (!mounted) return;
-        _handleDefaultNavigation(finalOrderData);
+        _handleDefaultNavigation(finalOrderData, order);
       } catch (e) {
         finalOrderData['orderId'] = 'temp_${DateTime.now().millisecondsSinceEpoch}';
         finalOrderData['isTempOrder'] = true;
 
         if (!mounted) return;
-        _handleDefaultNavigation(finalOrderData);
+        _handleDefaultNavigation(finalOrderData, null);
       }
 
     } catch (e) {
@@ -421,12 +423,81 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
     }
   }
 
-  void _handleDefaultNavigation(Map<String, dynamic> orderData) {
-    final isProfessionalService = widget.serviceType.toLowerCase() == 'professional service' ||
-        ['plumbing', 'electrical', 'carpentry', 'painting', 'cleaning', 'laundry']
-            .contains(widget.serviceType.toLowerCase());
+  // **COMPLETELY FIXED: _handleDefaultNavigation method**
+  void _handleDefaultNavigation(Map<String, dynamic> orderData, CustomerOrder? order) {
+    final professionalServices = [
+      'plumbing',
+      'electrical',
+      'carpentry',
+      'painting',
+      'professional service'
+    ];
+
+    final isProfessionalService = professionalServices.contains(widget.serviceType.toLowerCase());
+
+    print('🧭 NAVIGATION DEBUG:');
+    print('   - Service Type: "${widget.serviceType}"');
+    print('   - Service Type Lowercase: "${widget.serviceType.toLowerCase()}"');
+    print('   - Is Professional: $isProfessionalService');
+    print('   - Order Created: ${order != null}');
+    print('   - Order ID: ${order?.id}');
+    print('   - Selected Agent: ${_selectedAgent?.displayName}');
+
+    // **DEBUG: Check what service type is actually coming through**
+    print('🔍 SERVICE TYPE CHECK:');
+    print('   - Is "laundry": ${widget.serviceType.toLowerCase() == 'laundry'}');
+    print('   - Is "cleaning": ${widget.serviceType.toLowerCase() == 'cleaning'}');
+    print('   - Is "Laundry": ${widget.serviceType == 'Laundry'}');
+    print('   - Is "Laundry".toLowerCase(): ${widget.serviceType.toLowerCase() == 'laundry'}');
+
+    // **FIXED: Handle laundry service navigation - check both cases**
+    final serviceTypeLower = widget.serviceType.toLowerCase();
+
+    if (serviceTypeLower == 'laundry') {
+      print('🧺 NAVIGATING TO LAUNDRY WAITING SCREEN');
+      if (order != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LaundryOrderWaitingScreen(
+              orderId: order.id,
+              selectedAgent: _selectedAgent!,
+              orderData: orderData,
+              customerOrder: order,
+            ),
+          ),
+        );
+      } else {
+        // Create a temporary order for navigation
+        final tempOrder = CustomerOrder(
+          id: orderData['orderId'] ?? 'temp_${DateTime.now().millisecondsSinceEpoch}',
+          serviceCategory: 'laundry',
+          description: orderData['description'] ?? 'Laundry Service',
+          location: orderData['address'] ?? 'Not specified',
+          price: widget.orderAmount,
+          status: 'pending',
+          createdAt: DateTime.now(),
+          isPublic: false,
+          isDirectOffer: false,
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LaundryOrderWaitingScreen(
+              orderId: tempOrder.id,
+              selectedAgent: _selectedAgent!,
+              orderData: orderData,
+              customerOrder: tempOrder,
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     if (isProfessionalService) {
+      print('👷 Navigating to PROFESSIONAL SERVICE confirmation');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -470,9 +541,11 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       return;
     }
 
-    switch (widget.serviceType) {
+    // Handle other service types
+    switch (serviceTypeLower) {
       case 'child_babysitting':
       case 'animal_babysitting':
+        print('👶 Navigating to BABYSITTING confirmation');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -487,6 +560,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
       case 'moving':
       case 'movers':
+        print('🚛 Navigating to MOVERS confirmation');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -503,8 +577,8 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       case 'grocery':
       case 'delivery':
       case 'cleaning':
-      case 'laundry':
       default:
+        print('📦 Navigating to REGULAR order confirmation');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -528,8 +602,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       print('   - agent.id (profile ID): ${_selectedAgent!.id}');
       print('   - agent.userId (user ID): ${_selectedAgent!.userId}');
       print('   - Using for requestedAgent: $agentId');
-      print('   - Expected user ID: 68fd4318c1b89d5e0463f6c8');
-      print('   - IDs Match: ${agentId == '68fd4318c1b89d5e0463f6c8'}');
       print('====================================');
 
       print('🔍 RAW ORDER DATA: ${widget.orderData}');
@@ -554,20 +626,21 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
           widget.orderData['itemsDescription'] ??
           _buildServiceDetails(widget.orderData);
 
-      // **FIXED: Correct service type detection**
-      final isProfessionalService = ServiceMapper.isProfessionalService(widget.serviceType) &&
-          !['grocery', 'errand', 'delivery', 'moving', 'movers'].contains(widget.serviceType.toLowerCase());
+      final professionalServices = ['plumbing', 'electrical', 'carpentry', 'painting', 'professional service'];
+      final isProfessionalService = professionalServices.contains(widget.serviceType.toLowerCase());
       final isDeliveryService = widget.serviceType.toLowerCase() == 'delivery';
       final isErrandService = widget.serviceType.toLowerCase() == 'errand' ||
           widget.serviceType.toLowerCase() == 'grocery';
       final isMovingService = widget.serviceType.toLowerCase() == 'moving' ||
           widget.serviceType.toLowerCase() == 'movers';
+      final isLaundryService = widget.serviceType.toLowerCase() == 'laundry';
 
       print('🔧 Service Type Analysis:');
       print('   - Professional: $isProfessionalService');
       print('   - Delivery: $isDeliveryService');
       print('   - Errand: $isErrandService');
       print('   - Moving: $isMovingService');
+      print('   - Laundry: $isLaundryService');
       print('   - Actual Service Type: ${widget.serviceType}');
 
       CustomerOrder order;
@@ -605,7 +678,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
           }
         }
 
-        // **FIXED: Handle Map return type from createProfessionalOrder**
         final orderResult = await _customerService.createProfessionalOrder(
           serviceCategory: serviceCategory,
           details: details,
@@ -618,7 +690,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
         print('📦 Professional order result type: ${orderResult.runtimeType}');
 
-        // Convert Map to CustomerOrder
         if (orderResult is Map<String, dynamic> && orderResult['order'] != null) {
           order = CustomerOrder.fromJson(orderResult['order']);
         } else if (orderResult is Map<String, dynamic>) {
@@ -627,82 +698,92 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
           throw Exception('Invalid order response format: ${orderResult.runtimeType}');
         }
       } else {
-        switch (widget.serviceType.toLowerCase()) {
-          case 'errand':
-          case 'grocery':
-            print('🛒 Creating ERRAND order...');
-            order = await _customerService.createErrandOrder(
-              errandType: widget.orderData['errandType'] ?? widget.serviceType,
-              fromAddress: widget.orderData['fromAddress'] ?? location,
-              toAddress: widget.orderData['toAddress'] ?? widget.orderData['address'] ?? '',
-              itemsDescription: widget.orderData['itemsDescription'] ?? widget.orderData['description'] ?? details,
-              totalAmount: widget.orderAmount,
-              receiverName: widget.orderData['receiverName'],
-              receiverPhone: widget.orderData['receiverPhone'],
-              specialInstructions: widget.orderData['specialInstructions'],
-              requestedAgentId: agentId,
-            );
-            break;
+        // **FIXED: Handle laundry service order creation**
+        if (isLaundryService) {
+          print('🧺 Creating LAUNDRY order...');
+          order = await _customerService.createErrandOrder(
+            errandType: 'laundry',
+            fromAddress: location,
+            toAddress: location,
+            itemsDescription: details,
+            totalAmount: widget.orderAmount,
+            requestedAgentId: agentId,
+          );
+        } else {
+          switch (widget.serviceType.toLowerCase()) {
+            case 'errand':
+            case 'grocery':
+              print('🛒 Creating ERRAND order...');
+              order = await _customerService.createErrandOrder(
+                errandType: widget.orderData['errandType'] ?? widget.serviceType,
+                fromAddress: widget.orderData['fromAddress'] ?? location,
+                toAddress: widget.orderData['toAddress'] ?? widget.orderData['address'] ?? '',
+                itemsDescription: widget.orderData['itemsDescription'] ?? widget.orderData['description'] ?? details,
+                totalAmount: widget.orderAmount,
+                receiverName: widget.orderData['receiverName'],
+                receiverPhone: widget.orderData['receiverPhone'],
+                specialInstructions: widget.orderData['specialInstructions'],
+                requestedAgentId: agentId,
+              );
+              break;
 
-          case 'moving':
-          case 'movers':
-            print('🚛 Creating MOVING order...');
-            int? numberOfMovers;
-            if (widget.orderData['numberOfMovers'] is int) {
-              numberOfMovers = widget.orderData['numberOfMovers'] as int;
-            } else if (widget.orderData['numberOfMovers'] is String) {
-              numberOfMovers = int.tryParse(widget.orderData['numberOfMovers']);
-            }
+            case 'moving':
+            case 'movers':
+              print('🚛 Creating MOVING order...');
+              int? numberOfMovers;
+              if (widget.orderData['numberOfMovers'] is int) {
+                numberOfMovers = widget.orderData['numberOfMovers'] as int;
+              } else if (widget.orderData['numberOfMovers'] is String) {
+                numberOfMovers = int.tryParse(widget.orderData['numberOfMovers']);
+              }
 
-            DateTime moveDate;
-            if (widget.orderData['moveDate'] is DateTime) {
-              moveDate = widget.orderData['moveDate'] as DateTime;
-            } else if (widget.orderData['moveDate'] is String) {
-              moveDate = DateTime.tryParse(widget.orderData['moveDate']) ?? DateTime.now().add(const Duration(days: 1));
-            } else {
-              moveDate = DateTime.now().add(const Duration(days: 1));
-            }
+              DateTime moveDate;
+              if (widget.orderData['moveDate'] is DateTime) {
+                moveDate = widget.orderData['moveDate'] as DateTime;
+              } else if (widget.orderData['moveDate'] is String) {
+                moveDate = DateTime.tryParse(widget.orderData['moveDate']) ?? DateTime.now().add(const Duration(days: 1));
+              } else {
+                moveDate = DateTime.now().add(const Duration(days: 1));
+              }
 
-            order = await _customerService.createMoversOrder(
-              moveType: widget.orderData['moveType'] ?? 'residential',
-              fromAddress: widget.orderData['fromAddress'] ?? location,
-              toAddress: widget.orderData['toAddress'] ?? '',
-              vehicleType: widget.orderData['vehicleType'] ?? 'medium_truck',
-              moveDate: moveDate,
-              timeSlot: widget.orderData['timeSlot'] ?? 'morning',
-              totalAmount: widget.orderAmount,
-              itemsDescription: widget.orderData['itemsDescription'] ?? details,
-              numberOfMovers: numberOfMovers ?? 2,
-              requestedAgentId: agentId,
-            );
-            break;
+              order = await _customerService.createMoversOrder(
+                moveType: widget.orderData['moveType'] ?? 'residential',
+                fromAddress: widget.orderData['fromAddress'] ?? location,
+                toAddress: widget.orderData['toAddress'] ?? '',
+                vehicleType: widget.orderData['vehicleType'] ?? 'medium_truck',
+                moveDate: moveDate,
+                timeSlot: widget.orderData['timeSlot'] ?? 'morning',
+                totalAmount: widget.orderAmount,
+                itemsDescription: widget.orderData['itemsDescription'] ?? details,
+                numberOfMovers: numberOfMovers ?? 2,
+                requestedAgentId: agentId,
+              );
+              break;
 
-          case 'cleaning':
-          case 'laundry':
-            print('🧹 Creating CLEANING/LAUNDRY order...');
-            // Use errand order for cleaning/laundry since they're not professional services
-            order = await _customerService.createErrandOrder(
-              errandType: widget.serviceType,
-              fromAddress: location,
-              toAddress: location,
-              itemsDescription: details,
-              totalAmount: widget.orderAmount,
-              requestedAgentId: agentId,
-            );
-            break;
+            case 'cleaning':
+              print('🧹 Creating CLEANING order...');
+              order = await _customerService.createErrandOrder(
+                errandType: 'cleaning',
+                fromAddress: location,
+                toAddress: location,
+                itemsDescription: details,
+                totalAmount: widget.orderAmount,
+                requestedAgentId: agentId,
+              );
+              break;
 
-          default:
-            print('🔧 Creating DEFAULT order...');
-            // Fallback to errand order for unknown services
-            order = await _customerService.createErrandOrder(
-              errandType: widget.serviceType,
-              fromAddress: location,
-              toAddress: location,
-              itemsDescription: details,
-              totalAmount: widget.orderAmount,
-              requestedAgentId: agentId,
-            );
-            break;
+            default:
+              print('🔧 Creating DEFAULT order...');
+              order = await _customerService.createErrandOrder(
+                errandType: widget.serviceType,
+                fromAddress: location,
+                toAddress: location,
+                itemsDescription: details,
+                totalAmount: widget.orderAmount,
+                requestedAgentId: agentId,
+              );
+              break;
+          }
         }
       }
 

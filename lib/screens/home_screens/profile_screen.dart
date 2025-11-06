@@ -155,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (completedOrders.isNotEmpty) {
       _showOrderHistoryDialog(completedOrders);
     } else {
-      _showComingSoon('Order History');
+      _showunavailable('Order History');
     }
   }
 
@@ -308,6 +308,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       SnackBar(
         content: Text('$feature - Coming Soon!'),
         backgroundColor: const Color(0xFF2E7D32),
+      ),
+    );
+  }
+  void _showunavailable(String feature){
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+      content: Text("No order yet ") ,
+      backgroundColor: const Color(0xFF2E7D32),
       ),
     );
   }

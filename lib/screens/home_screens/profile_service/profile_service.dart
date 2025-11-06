@@ -145,52 +145,46 @@ class ProfileService {
 
       final url = '$baseUrl/api/customers/upload-profile';
       print('📤 Uploading profile image to: $url');
-      print('📁 Image path: ${imageFile.path}');
-      print('📁 Image size: ${await imageFile.length()} bytes');
 
-      // Create multipart request
-      var request = http.MultipartRequest('POST', Uri.parse(url));
-
-      // Add authorization header
+      final request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers['Authorization'] = 'Bearer $token';
 
-      // Add image file
-      request.files.add(await http.MultipartFile.fromPath(
-        'profileImage',
-        imageFile.path,
-        contentType: MediaType('image', 'jpeg'), // Adjust based on actual image type
+      // ✅ Read as bytes (important for GridFS / memoryStorage)
+      final imageBytes = await imageFile.readAsBytes();
+
+      request.files.add(http.MultipartFile.fromBytes(
+        'profileImage',        // MUST match upload.single('profileImage')
+        imageBytes,
+        filename: 'profile.jpg',     // any name works
+        contentType: MediaType('image', 'jpeg'),
       ));
 
-      print('🚀 Sending upload request...');
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      print('📊 Upload response status: ${response.statusCode}');
-      print('📊 Upload response body: ${response.body}');
+      print('📊 Status: ${response.statusCode}');
+      print('📊 Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
         return {
           'success': true,
-          'data': data,
-          'message': 'Profile image uploaded successfully'
+          'data': json.decode(response.body),
         };
       } else {
-        final errorBody = response.body.isNotEmpty ? json.decode(response.body) : {};
         return {
           'success': false,
-          'message': errorBody['message'] ?? 'Failed to upload image: ${response.statusCode}',
-          'statusCode': response.statusCode
+          'message': json.decode(response.body)['message'] ?? 'Upload failed',
         };
       }
     } catch (e) {
-      print('❌ Profile image upload error: $e');
+      print('❌ Upload error: $e');
       return {
         'success': false,
-        'message': 'Network error: ${e.toString()}'
+        'message': 'Network error: ${e.toString()}',
       };
     }
   }
+
 
   // Remove profile image via /api/customers/remove-profile-image
   Future<Map<String, dynamic>> removeProfileImage() async {

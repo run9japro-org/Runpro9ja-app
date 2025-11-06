@@ -43,7 +43,7 @@ class RefundPolicyScreen extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
             Text(
-              "To request a refund, please contact within (24 hours) of the incident via the following information:\n• Order number and date of service\n• Full name and phone number\n• Reason for the refund request\n• Any relevant documentation (receipts, photos, etc.)\nContact email: support@runpro9ja.com\nContact number: +234-XXX-XXX-XXXX",
+              "To request a refund, please contact within (24 hours) of the incident via the following information:\n• Order number and date of service\n• Full name and phone number\n• Reason for the refund request\n• Any relevant documentation (receipts, photos, etc.)\nContact email: run9japro@gmail.com\nContact number: 07010936585 & 07010936585",
             ),
             SizedBox(height: 20),
 

@@ -1,7 +1,6 @@
 // lib/screens/payment_methods_screen.dart
 import 'package:flutter/material.dart';
 import 'package:runpro_9ja/services/payment_service.dart';
-
 import '../../auth/Auth_services/auth_service.dart';
 
 class PaymentMethodsScreen extends StatefulWidget {
@@ -70,30 +69,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   // ========== PAYMENT METHOD OPERATIONS ==========
-
-  Future<void> _setDefaultPayment(String methodId) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      await _paymentService.setDefaultPaymentMethod(methodId);
-
-      setState(() {
-        for (var method in _paymentMethods) {
-          method.isDefault = method.id == methodId;
-        }
-        _isLoading = false;
-      });
-
-      _showSuccess('Default payment method updated');
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showError('Failed to update default payment method: $e');
-    }
-  }
 
   Future<void> _deletePaymentMethod(String methodId) async {
     try {
@@ -169,9 +144,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           : ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildDefaultPaymentSection(),
-          const SizedBox(height: 24),
-          _buildOtherPaymentMethods(),
+          _buildPaymentMethodsList(),
         ],
       ),
     );
@@ -217,16 +190,12 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     );
   }
 
-  Widget _buildDefaultPaymentSection() {
-    final defaultMethod = _paymentMethods.where((method) => method.isDefault).firstOrNull;
-
-    if (defaultMethod == null) return const SizedBox();
-
+  Widget _buildPaymentMethodsList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Default Payment Method',
+          'Your Payment Methods',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -234,39 +203,17 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        _buildPaymentMethodCard(defaultMethod, isDefault: true),
-      ],
-    );
-  }
-
-  Widget _buildOtherPaymentMethods() {
-    final otherMethods = _paymentMethods.where((method) => !method.isDefault).toList();
-
-    if (otherMethods.isEmpty) return const SizedBox();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Other Payment Methods',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...otherMethods.map((method) =>
+        ..._paymentMethods.map((method) =>
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _buildPaymentMethodCard(method, isDefault: false),
+              child: _buildPaymentMethodCard(method),
             ),
         ),
       ],
     );
   }
 
-  Widget _buildPaymentMethodCard(PaymentMethod method, {required bool isDefault}) {
+  Widget _buildPaymentMethodCard(PaymentMethod method) {
     final icon = _getPaymentMethodIcon(method.iconName);
     final color = _getPaymentMethodColor(method.colorHex);
 
@@ -274,9 +221,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: isDefault
-            ? BorderSide(color: const Color(0xFF2E7D32).withOpacity(0.3), width: 2)
-            : BorderSide.none,
       ),
       child: ListTile(
         leading: Container(
@@ -288,80 +232,26 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
           child: Icon(icon, color: color),
         ),
-        title: Row(
-          children: [
-            Text(
-              method.displayName,
-              style: TextStyle(
-                fontWeight: isDefault ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            if (isDefault) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.green),
-                ),
-                child: const Text(
-                  'Default',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ],
+        title: Text(
+          method.displayName,
+          style: const TextStyle(
+            fontWeight: FontWeight.w500,
+          ),
         ),
         subtitle: method.expiryDisplay.isNotEmpty
             ? Text('Expires ${method.expiryDisplay}')
             : null,
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            switch (value) {
-              case 'set_default':
-                if (!isDefault) {
-                  _setDefaultPayment(method.id);
-                }
-                break;
-              case 'delete':
-                _deletePaymentMethod(method.id);
-                break;
-            }
-          },
-          itemBuilder: (context) => [
-            if (!isDefault)
-              const PopupMenuItem(
-                value: 'set_default',
-                child: Row(
-                  children: [
-                    Icon(Icons.star, size: 20),
-                    SizedBox(width: 8),
-                    Text('Set as Default'),
-                  ],
-                ),
-              ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, size: 20, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-          ],
+        trailing: IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: () => _deletePaymentMethod(method.id),
+          tooltip: 'Delete Payment Method',
         ),
       ),
     );
   }
 }
 
+// Keep the AddPaymentMethodSheet class exactly as it was
 class AddPaymentMethodSheet extends StatefulWidget {
   final Function() onPaymentMethodAdded;
 

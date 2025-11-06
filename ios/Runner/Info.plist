@@ -24,6 +24,18 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ✅ Prevent iPad Crash -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
+
+	<!-- ✅ Declare support for both iPhone & iPad -->
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>
@@ -39,20 +51,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
 	<key>NSCameraUsageDescription</key>
     <string>This app requires access to your camera to allow you to take and upload photos.</string>
-
-    <key>NSLocationWhenInUseUsageDescription</key>
+	<key>NSLocationWhenInUseUsageDescription</key>
     <string>This app uses your location to find nearby riders and enable location-based services.</string>
-
-    <key>NSPhotoLibraryUsageDescription</key>
+	<key>NSPhotoLibraryUsageDescription</key>
     <string>This app needs access to your photo library so you can choose images for your profile and uploads.</string>
-
-    <key>NSPhotoLibraryAddUsageDescription</key>
+	<key>NSPhotoLibraryAddUsageDescription</key>
     <string>This app needs permission to save images to your device.</string>
 
 </dict>
