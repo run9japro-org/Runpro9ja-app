@@ -1,0 +1,35 @@
+workflows:
+  ios-workflow:
+    name: iOS Build
+    environment:
+      groups:
+      # Add your App Store Connect API key here later
+      flutter: stable
+      xcode: latest
+    scripts:
+      # This script will regenerate your iOS project properly
+      - name: Set up iOS project
+        script: |
+          echo "🔄 Setting up iOS project on Mac..."
+          flutter clean
+          flutter pub get
+          
+          # Force regenerate iOS project
+          flutter create --org com.runpro9ja --platforms=ios .
+          
+          # Set up CocoaPods
+          cd ios
+          pod repo update
+          pod install
+          cd ..
+
+      - name: Build iOS app
+        script: |
+          echo "🏗️ Building iOS app..."
+          flutter build ipa --release --no-codesign
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
