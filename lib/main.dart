@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:runpro_9ja/screens/home_screens/carousel_screen.dart';
 import 'package:runpro_9ja/screens/home_screens/otp_screen.dart';
@@ -21,15 +22,25 @@ import 'services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  // ✅ ADD THIS: iPad crash prevention
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized successfully');
+  } catch (e) {
+    print('❌ Firebase init error: $e');
+    // Continue without Firebase if it fails
+  }
+
   runApp(
     ProviderScope( // 👈 Riverpod root
       child: MyApp(),
     ),
   );
 }
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -41,19 +52,19 @@ class MyApp extends StatelessWidget {
         '/welcome': (context) => WelcomeScreen(),
         '/onboarding': (context) => OnboardingScreen(),
         '/signup': (context) => SignupScreen(),
-        '/login':(context)=> CustomerLoginPage(),
+        '/login': (context) => CustomerLoginPage(),
         '/verified': (context) => VerifiedPage(),
         '/main': (context) => MainPage(),
-      },onGenerateRoute: (settings) {
-      if (settings.name == '/otp') {
-        final userId = settings.arguments as String; // ✅ pass userId instead
-        return MaterialPageRoute(
-          builder: (context) => OtpScreen(userId: userId),
-        );
-      }
-      return null;
-    },
-
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/otp') {
+          final userId = settings.arguments as String;
+          return MaterialPageRoute(
+            builder: (context) => OtpScreen(userId: userId),
+          );
+        }
+        return null;
+      },
     );
   }
 }
@@ -85,24 +96,24 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],bottomNavigationBar: BottomNavigationBar(
-      type: BottomNavigationBarType.fixed, // ✅ prevents truncating
-      currentIndex: _selectedIndex,
-      selectedItemColor: Colors.green,
-      unselectedItemColor: Colors.grey,
-      showSelectedLabels: true,
-      showUnselectedLabels: true,
-      selectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-      unselectedLabelStyle: const TextStyle(fontSize: 11),
-      onTap: _onItemTapped,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.history), label: "Service History"),
-        BottomNavigationBarItem(icon: Icon(Icons.support_agent), label: "Customer Support"),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-      ],
-    ),
-
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Service History"),
+          BottomNavigationBarItem(icon: Icon(Icons.support_agent), label: "Customer Support"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+        ],
+      ),
     );
   }
 }
