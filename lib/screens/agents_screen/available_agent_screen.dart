@@ -232,7 +232,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
                     radius: 25,
                     backgroundColor: Colors.grey[300],
                     backgroundImage: agent.profileImage.isNotEmpty
-                        ? NetworkImage('${agent.profileImage}')
+                        ? NetworkImage('https://runpro9ja-pxqoa.ondigitalocean.app${agent.profileImage}')
                         : null,
                     child: agent.profileImage.isEmpty
                         ? const Icon(Icons.person, color: Colors.grey)

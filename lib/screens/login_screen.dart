@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// REMOVED: import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'home_screens/forget_password.dart';
 
@@ -21,7 +21,7 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   final LocalAuthentication _localAuth = LocalAuthentication();
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  // REMOVED: final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -59,8 +59,9 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
 
   Future<void> _checkStoredCredentials() async {
     try {
-      final String? storedIdentifier = await _secureStorage.read(key: 'user_identifier');
-      final String? storedPassword = await _secureStorage.read(key: 'user_password');
+      final prefs = await SharedPreferences.getInstance();
+      final String? storedIdentifier = prefs.getString('user_identifier');
+      final String? storedPassword = prefs.getString('user_password');
 
       setState(() {
         _hasStoredCredentials = storedIdentifier != null && storedPassword != null;
@@ -82,12 +83,13 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
 
   Future<void> _storeCredentials(String identifier, String password) async {
     try {
-      await _secureStorage.write(key: 'user_identifier', value: identifier);
-      await _secureStorage.write(key: 'user_password', value: password);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_identifier', identifier);
+      await prefs.setString('user_password', password);
       setState(() {
         _hasStoredCredentials = true;
       });
-      print('✅ Credentials stored securely');
+      print('✅ Credentials stored');
     } catch (e) {
       print('❌ Error storing credentials: $e');
     }
@@ -95,8 +97,9 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
 
   Future<void> _removeStoredCredentials() async {
     try {
-      await _secureStorage.delete(key: 'user_identifier');
-      await _secureStorage.delete(key: 'user_password');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_identifier');
+      await prefs.remove('user_password');
       setState(() {
         _hasStoredCredentials = false;
       });
@@ -106,10 +109,6 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
     }
   }
 
-
-
-  // FIXED: Correct biometric authentication
-  // FIXED: Correct biometric authentication
   Future<void> _authenticateWithBiometrics() async {
     try {
       final bool canAuthenticate =
@@ -124,8 +123,6 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
         return;
       }
 
-      // FIXED: Changed 'auth' to '_localAuth'
-      // Using your local_auth version's API
       final bool authenticated = await _localAuth.authenticate(
         localizedReason: 'Authenticate to access your RunPro 9ja account',
         biometricOnly: false,
@@ -154,11 +151,11 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
     }
   }
 
-
   Future<void> _loginWithStoredCredentials() async {
     try {
-      final String? storedIdentifier = await _secureStorage.read(key: 'user_identifier');
-      final String? storedPassword = await _secureStorage.read(key: 'user_password');
+      final prefs = await SharedPreferences.getInstance();
+      final String? storedIdentifier = prefs.getString('user_identifier');
+      final String? storedPassword = prefs.getString('user_password');
 
       if (storedIdentifier == null || storedPassword == null) {
         if (mounted) {
@@ -185,7 +182,6 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data["token"] != null) {
-        final prefs = await SharedPreferences.getInstance();
         await prefs.setString("jwtToken", data["token"]);
         print("✅ Auto-login successful");
 
@@ -273,6 +269,7 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
     }
   }
 
+  // ... rest of your build method remains exactly the same ...
   @override
   Widget build(BuildContext context) {
     return Scaffold(
