@@ -5,7 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileService {
-  final String baseUrl = "https://runpro9ja-backend.onrender.com";
+  final String baseUrl = "https://runpro9ja-pxqoa.ondigitalocean.app";
 
   Future<String?> getToken() async {
     try {
@@ -137,26 +137,23 @@ class ProfileService {
     try {
       final token = await getToken();
       if (token == null) {
-        return {
-          'success': false,
-          'message': 'No authentication token found'
-        };
+        return {'success': false, 'message': 'No authentication token found'};
       }
 
       final url = '$baseUrl/api/customers/upload-profile';
-      print('📤 Uploading profile image to: $url');
+      print("📤 Uploading profile image to: $url");
 
       final request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers['Authorization'] = 'Bearer $token';
 
-      // ✅ Read as bytes (important for GridFS / memoryStorage)
       final imageBytes = await imageFile.readAsBytes();
+      final mimeType = imageFile.path.split('.').last.toLowerCase();
 
       request.files.add(http.MultipartFile.fromBytes(
-        'profileImage',        // MUST match upload.single('profileImage')
+        'profileImage',          // <-- must match multer.single("profileImage")
         imageBytes,
-        filename: 'profile.jpg',     // any name works
-        contentType: MediaType('image', 'jpeg'),
+        filename: 'profile.$mimeType',
+        contentType: MediaType('image', mimeType),
       ));
 
       final streamedResponse = await request.send();
@@ -166,24 +163,19 @@ class ProfileService {
       print('📊 Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'data': json.decode(response.body),
-        };
+        return {'success': true, 'data': json.decode(response.body)};
       } else {
         return {
           'success': false,
-          'message': json.decode(response.body)['message'] ?? 'Upload failed',
+          'message': json.decode(response.body)['message'] ?? 'Upload failed'
         };
       }
     } catch (e) {
       print('❌ Upload error: $e');
-      return {
-        'success': false,
-        'message': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'message': 'Network error: $e'};
     }
   }
+
 
 
   // Remove profile image via /api/customers/remove-profile-image

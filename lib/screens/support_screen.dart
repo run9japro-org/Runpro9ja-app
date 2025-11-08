@@ -36,42 +36,30 @@ class _SupportScreenState extends State<SupportScreen> {
   }
 
   Future<void> _launchPhone(String phoneNumber) async {
-    final Uri telLaunchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
+    final Uri uri = Uri(scheme: 'tel', path: phoneNumber);
 
-    if (await canLaunchUrl(telLaunchUri)) {
-      await launchUrl(telLaunchUri);
-    } else {
-      _showError('Could not launch $phoneNumber');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showError("Could not open phone dialer");
     }
   }
 
   Future<void> _launchEmail(String email) async {
-    final Uri emailLaunchUri = Uri(
+    final Uri uri = Uri(
       scheme: 'mailto',
       path: email,
-      query: 'subject=RunPro 9ja Support',
+      query: Uri(queryParameters: {'subject': 'RunPro 9ja Support'}).query,
     );
 
-    if (await canLaunchUrl(emailLaunchUri)) {
-      await launchUrl(emailLaunchUri);
-    } else {
-      _showError('Could not launch email app');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showError("No email app found");
     }
   }
 
-  // SIMPLE URL LAUNCHER - WORKING VERSION
   Future<void> _launchSocial(String url) async {
-    try {
-      final Uri socialUri = Uri.parse(url);
-      await launchUrl(
-        socialUri,
-        mode: LaunchMode.externalApplication,
-      );
-    } catch (e) {
-      _showError('Could not open link. Please make sure the app is installed.');
+    final Uri uri = Uri.parse(url);
+
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showError("Could not open link. Please make sure the app is installed.");
     }
   }
 

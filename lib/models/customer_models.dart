@@ -153,14 +153,12 @@ class CustomerOrder {
       location: orderData['location'] ?? '',
       price: _parsePrice(orderData),
       status: orderData['status'] ?? 'requested',
-        createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: _parseDateTime(orderData['createdAt']) ?? DateTime.now(), // ✅ FIXED HERE
       scheduledDate: _parseDateTime(orderData['scheduledDate']),
       assignedAgent: orderData['assignedAgent'],
       agent: orderData['agent'] is Map ? Map<String, dynamic>.from(orderData['agent']) : null,
       isPublic: orderData['isPublic'] ?? false,
       isDirectOffer: orderData['isDirectOffer'] ?? false,
-
-      // New professional fields
       orderType: orderData['orderType'],
       quotationDetails: orderData['quotationDetails'],
       quotationAmount: (orderData['quotationAmount'] ?? 0).toDouble(),
@@ -168,10 +166,9 @@ class CustomerOrder {
       recommendedAgents: orderData['recommendedAgents'],
       representative: orderData['representative'],
       serviceCategoryId: _parseServiceCategoryId(orderData),
-
-      // Service Scale
       serviceScale: orderData['serviceScale'],
     );
+
   }
 
 // Helper method to parse price from different possible fields

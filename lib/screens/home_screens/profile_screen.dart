@@ -262,9 +262,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (imagePath.startsWith('http')) {
       return imagePath;
     } else if (imagePath.startsWith('/')) {
-      return 'https://runpro9ja-backend.onrender.com$imagePath';
+      return 'https://runpro9ja-pxqoa.ondigitalocean.app$imagePath';
     } else {
-      return 'https://runpro9ja-backend.onrender.com/uploads/$imagePath';
+      return 'https://runpro9ja-pxqoa.ondigitalocean.app/uploads/$imagePath';
     }
   }
 
@@ -383,10 +383,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           radius: 42,
                           backgroundImage: NetworkImage(_getProfileImage()),
                           onBackgroundImageError: (exception, stackTrace) {
-                            // Fallback handled by the generated avatar URL
+                            setState(() {}); // triggers fallback UI from _getProfileImage()
                           },
                         ),
                       ),
+
                       Positioned(
                         bottom: 0,
                         right: 0,

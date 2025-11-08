@@ -232,7 +232,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
                     radius: 25,
                     backgroundColor: Colors.grey[300],
                     backgroundImage: agent.profileImage.isNotEmpty
-                        ? NetworkImage('https://runpro9ja-backend.onrender.com${agent.profileImage}')
+                        ? NetworkImage('${agent.profileImage}')
                         : null,
                     child: agent.profileImage.isEmpty
                         ? const Icon(Icons.person, color: Colors.grey)
@@ -370,26 +370,37 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
     });
   }
 
+  // In agent_selection_screen.dart - FIXED _proceedWithAgent method
+
   Future<void> _proceedWithAgent() async {
     if (_selectedAgent == null) return;
 
     try {
       setState(() => _isSubmitting = true);
 
+      // **CRITICAL: Store agent ID in orderData BEFORE creating order**
       final finalOrderData = {
         ...widget.orderData,
         'selectedAgent': _selectedAgent!.toJson(),
+        'selectedAgentId': _selectedAgent!.userId,  // ✅ ADD THIS
+        'selectedAgentName': _selectedAgent!.displayName,  // ✅ ADD THIS
         'totalAmount': widget.orderAmount,
       };
 
-      // **FIX: Handle callback navigation FIRST**
+      print('🎯 ===== ORDER DATA DEBUG =====');
+      print('   - Selected Agent User ID: ${_selectedAgent!.userId}');
+      print('   - Selected Agent Name: ${_selectedAgent!.displayName}');
+      print('   - Order Amount: ${widget.orderAmount}');
+      print('====================================');
+
+      // Handle callback navigation FIRST
       if (widget.onAgentSelected != null) {
         print('🎯 Using custom callback for agent selection');
         widget.onAgentSelected!(_selectedAgent!, finalOrderData);
-        return; // **RETURN here to prevent double navigation**
+        return;
       }
 
-      // **Only continue with default flow if no callback**
+      // Handle nextScreen navigation
       if (widget.nextScreen != null) {
         Navigator.pushReplacement(
           context,
@@ -398,23 +409,49 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
         return;
       }
 
+      // CREATE THE ORDER
       try {
+        print('📦 Creating order with selected agent...');
         final order = await _createOrderWithSelectedAgent();
+
+        print('✅ ORDER CREATED SUCCESSFULLY!');
+        print('   - Order ID: ${order.id}');
+        print('   - Status: ${order.status}');
+        print('   - Service: ${order.serviceCategory}');
+
+        // **CRITICAL: Store ALL necessary IDs**
         finalOrderData['orderId'] = order.id;
+        finalOrderData['_id'] = order.id;
+        finalOrderData['isTempOrder'] = false;
+
+        // ✅ ENSURE agent ID is in the data
+        finalOrderData['agentId'] = _selectedAgent!.userId;
+        finalOrderData['agentName'] = _selectedAgent!.displayName;
+
+        print('💾 Final Order Data:');
+        print('   - orderId: ${finalOrderData['orderId']}');
+        print('   - agentId: ${finalOrderData['agentId']}');
+        print('   - amount: ${finalOrderData['totalAmount']}');
 
         if (!mounted) return;
+
         _handleDefaultNavigation(finalOrderData, order);
-      } catch (e) {
-        finalOrderData['orderId'] = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-        finalOrderData['isTempOrder'] = true;
 
-        if (!mounted) return;
-        _handleDefaultNavigation(finalOrderData, null);
+      } catch (e) {
+        print('❌ ERROR CREATING ORDER: $e');
+        print('📋 Stack trace: ${StackTrace.current}');
+
+        if (mounted) {
+          _showError('Failed to create order. Please try again.');
+          setState(() => _isSubmitting = false);
+        }
+        return;
       }
 
     } catch (e) {
+      print('❌ UNEXPECTED ERROR: $e');
       if (mounted) {
-        _showError('Failed to create order: ${e.toString()}');
+        _showError('An unexpected error occurred: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -583,6 +620,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => OrderConfirmationScreen(
+              orderId: orderData['orderId'],
               orderData: orderData,
               serviceType: widget.serviceType,
             ),
@@ -724,6 +762,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
                 receiverPhone: widget.orderData['receiverPhone'],
                 specialInstructions: widget.orderData['specialInstructions'],
                 requestedAgentId: agentId,
+
               );
               break;
 
