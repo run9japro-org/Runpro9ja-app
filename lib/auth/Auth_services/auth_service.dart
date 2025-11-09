@@ -480,5 +480,53 @@ class AuthService {
       return false;
     }
   }
+  Future<CurrentUser?> getCurrentUser() async {
+    try {
+      // First try to get user data from token
+      final userData = await getUserData();
+      if (userData != null) {
+        return CurrentUser(
+          id: userData['id'] ?? userData['_id'] ?? '',
+          email: userData['email'] ?? '',
+          fullName: userData['fullName'] ?? userData['name'] ?? 'Customer',
+        );
+      }
+
+      // If token data is insufficient, try to fetch profile
+      final profileResponse = await getUserProfile();
+      if (profileResponse['success'] == true) {
+        final profileData = profileResponse['data'] ?? {};
+        return CurrentUser(
+          id: profileData['_id'] ?? profileData['id'] ?? '',
+          email: profileData['email'] ?? '',
+          fullName: profileData['fullName'] ?? profileData['name'] ?? 'Customer',
+        );
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error getting current user: $e');
+      return null;
+    }
+  }
 }
 
+
+
+// Add this user model class (create a new file or add at the top)
+class CurrentUser {
+  final String id;
+  final String email;
+  final String fullName;
+
+  CurrentUser({
+    required this.id,
+    required this.email,
+    required this.fullName,
+  });
+
+  @override
+  String toString() {
+    return 'CurrentUser{id: $id, email: $email, fullName: $fullName}';
+  }
+}

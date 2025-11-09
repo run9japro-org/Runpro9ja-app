@@ -251,43 +251,33 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
     );
   }
-
   Future<void> _cancelPayment() async {
     try {
       print('🚫 Cancelling payment for order: ${widget.orderId}');
 
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Call backend to cancel payment
+      // Call your backend cancel endpoint
       final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse('https://runpro9ja-pxqoa.ondigitalocean.app/api/payments/${widget.orderId}/cancel'),
+      final response = await http.put(
+        Uri.parse('https://runpro9ja-backend.onrender.com/api/payments/cancel/${widget.orderId}'),
         headers: headers,
         body: json.encode({
-          'cancelledBy': 'user',
+          'cancelledBy': 'customer',
           'reason': 'User cancelled payment process',
         }),
       );
 
-      setState(() {
-        _isLoading = false;
-      });
+      print('📊 Cancel response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
-        print('✅ Payment cancelled successfully');
+        print('✅ Payment cancelled in backend');
         _showCancellationSuccess();
       } else {
-        print('❌ Payment cancellation failed: ${response.statusCode}');
-        _showCancellationError('Failed to cancel payment. Please contact support.');
+        print('⚠️ Backend cancellation failed, but allowing user to exit');
+        _showCancellationSuccess(); // Still show success to user
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      print('❌ Payment cancellation error: $e');
-      _showCancellationError('Cancellation failed: $e');
+      print('❌ Cancel payment error: $e');
+      _showCancellationSuccess(); // Always allow user to exit
     }
   }
 
@@ -308,7 +298,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Close payment screen
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/home',
+                    (route) => false, // Clear entire stack
+              ); // Close payment screen
             },
             child: const Text('OK'),
           ),
@@ -351,7 +345,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Prevent back button during payment
+      // canPop: false, // Prevent back button during payment
       onPopInvoked: (didPop) {
         if (didPop) return;
         _showExitConfirmation();

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 class CustomerProfile {
   final String id;
@@ -121,7 +123,20 @@ class CustomerOrder {
     // NEW: Service Scale
     this.serviceScale,
   });
-
+  static double safeToDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      try {
+        return double.parse(value);
+      } catch (e) {
+        print('❌ Error parsing string to double: $value');
+        return 0.0;
+      }
+    }
+    return 0.0;
+  }
   factory CustomerOrder.fromJson(Map<String, dynamic> json) {
     print('🔄 Creating CustomerOrder from JSON...');
     print('📋 JSON keys: ${json.keys.toList()}');
@@ -146,14 +161,18 @@ class CustomerOrder {
 
     print('🎯 Final order data keys: ${orderData.keys.toList()}');
 
+    // Parse price first to debug
+    final parsedPrice = _parsePrice(orderData);
+    print('💰 Parsed price: $parsedPrice');
+
     return CustomerOrder(
       id: orderData['_id'] ?? orderData['id'] ?? '',
       serviceCategory: _parseServiceCategory(orderData),
       description: orderData['details'] ?? orderData['description'] ?? '',
       location: orderData['location'] ?? '',
-      price: _parsePrice(orderData),
+      price: parsedPrice, // Use the properly parsed price
       status: orderData['status'] ?? 'requested',
-      createdAt: _parseDateTime(orderData['createdAt']) ?? DateTime.now(), // ✅ FIXED HERE
+      createdAt: _parseDateTime(orderData['createdAt']) ?? DateTime.now(),
       scheduledDate: _parseDateTime(orderData['scheduledDate']),
       assignedAgent: orderData['assignedAgent'],
       agent: orderData['agent'] is Map ? Map<String, dynamic>.from(orderData['agent']) : null,
@@ -161,24 +180,157 @@ class CustomerOrder {
       isDirectOffer: orderData['isDirectOffer'] ?? false,
       orderType: orderData['orderType'],
       quotationDetails: orderData['quotationDetails'],
-      quotationAmount: (orderData['quotationAmount'] ?? 0).toDouble(),
+      quotationAmount: safeToDouble(orderData['quotationAmount']), // Use the same helper
       quotationProvidedAt: _parseDateTime(orderData['quotationProvidedAt']),
       recommendedAgents: orderData['recommendedAgents'],
       representative: orderData['representative'],
       serviceCategoryId: _parseServiceCategoryId(orderData),
       serviceScale: orderData['serviceScale'],
     );
-
   }
-
-// Helper method to parse price from different possible fields
+// FIXED: Enhanced price parsing method with proper type handling
+  // FIXED: Enhanced price parsing method that checks details field properly
+  // FIXED: Enhanced price parsing method that extracts price from text details
   static double _parsePrice(Map<String, dynamic> json) {
-    if (json['price'] != null) return json['price'].toDouble();
-    if (json['quotationAmount'] != null) return json['quotationAmount'].toDouble();
-    if (json['totalAmount'] != null) return json['totalAmount'].toDouble();
+    print('💰 Parsing price from JSON keys: ${json.keys.toList()}');
+
+    // Helper function to safely convert to double
+    double safeToDouble(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) {
+        try {
+          return double.parse(value);
+        } catch (e) {
+          print('❌ Error parsing string to double: $value');
+          return 0.0;
+        }
+      }
+      return 0.0;
+    }
+
+    // Helper function to extract price from text using regex
+    double extractPriceFromText(String text) {
+      try {
+        // Look for patterns like "₦2000", "Total Amount: ₦2000", "NGN 2000", etc.
+        final regex = RegExp(r'(?:₦|NGN|Naira|Total.*?)(\d+(?:\.\d+)?)');
+        final match = regex.firstMatch(text);
+
+        if (match != null) {
+          final priceString = match.group(1);
+          final price = safeToDouble(priceString);
+          print('✅ Extracted price from text: $price');
+          return price;
+        }
+
+        // Alternative pattern for "2000" directly
+        final simpleRegex = RegExp(r'\b(\d+(?:\.\d+)?)\s*(?:₦|NGN)?\b');
+        final simpleMatch = simpleRegex.firstMatch(text);
+
+        if (simpleMatch != null) {
+          final priceString = simpleMatch.group(1);
+          final price = safeToDouble(priceString);
+          print('✅ Extracted price using simple pattern: $price');
+          return price;
+        }
+
+        return 0.0;
+      } catch (e) {
+        print('❌ Error extracting price from text: $e');
+        return 0.0;
+      }
+    }
+
+    // First, check if details is a Map and contains price information
+    if (json['details'] != null) {
+      print('🔍 Checking details field: ${json['details']}');
+
+      if (json['details'] is Map) {
+        final details = json['details'] as Map<String, dynamic>;
+        print('📋 Details keys: ${details.keys.toList()}');
+
+        // Check for various price fields in details map
+        if (details['totalAmount'] != null) {
+          final total = safeToDouble(details['totalAmount']);
+          print('✅ Using details.totalAmount field: $total');
+          return total;
+        }
+        if (details['price'] != null) {
+          final price = safeToDouble(details['price']);
+          print('✅ Using details.price field: $price');
+          return price;
+        }
+        if (details['amount'] != null) {
+          final amount = safeToDouble(details['amount']);
+          print('✅ Using details.amount field: $amount');
+          return amount;
+        }
+        if (details['totalPrice'] != null) {
+          final totalPrice = safeToDouble(details['totalPrice']);
+          print('✅ Using details.totalPrice field: $totalPrice');
+          return totalPrice;
+        }
+      } else if (json['details'] is String) {
+        final detailsText = json['details'] as String;
+        print('📝 Details is text, extracting price from: $detailsText');
+
+        // Extract price from the text details
+        final extractedPrice = extractPriceFromText(detailsText);
+        if (extractedPrice > 0) {
+          print('✅ Successfully extracted price from text: $extractedPrice');
+          return extractedPrice;
+        }
+      }
+    }
+
+    // Check top-level price fields
+    if (json['price'] != null) {
+      final price = safeToDouble(json['price']);
+      print('✅ Using top-level price field: $price');
+      return price;
+    }
+
+    if (json['quotationAmount'] != null) {
+      final amount = safeToDouble(json['quotationAmount']);
+      print('✅ Using top-level quotationAmount field: $amount');
+      return amount;
+    }
+
+    if (json['totalAmount'] != null) {
+      final total = safeToDouble(json['totalAmount']);
+      print('✅ Using top-level totalAmount field: $total');
+      return total;
+    }
+
+    if (json['amount'] != null) {
+      final amount = safeToDouble(json['amount']);
+      print('✅ Using top-level amount field: $amount');
+      return amount;
+    }
+
+    print('❌ No price field found in any location!');
+
+    // Since we know the details contain "Total Amount: ₦2000", let's try one more extraction
+    if (json['details'] is String) {
+      final detailsText = json['details'] as String;
+      print('🔄 Final attempt to extract from: $detailsText');
+
+      // Direct search for the total amount line
+      final lines = detailsText.split('\n');
+      for (final line in lines) {
+        if (line.contains('Total Amount') || line.contains('₦')) {
+          final price = extractPriceFromText(line);
+          if (price > 0) {
+            print('✅ Extracted from specific line: $price');
+            return price;
+          }
+        }
+      }
+    }
+
     return 0.0;
   }
-
 // Helper method to parse DateTime safely
   static DateTime? _parseDateTime(dynamic dateString) {
     try {
@@ -191,7 +343,24 @@ class CustomerOrder {
       return null;
     }
   }
+// Helper method to extract price from text details
+  static double extractPriceFromDetails(String detailsText) {
+    try {
+      // Look for patterns like "₦2000", "Total Amount: ₦2000"
+      final regex = RegExp(r'(?:₦|NGN|Total.*?)(\d+(?:\.\d+)?)');
+      final match = regex.firstMatch(detailsText);
 
+      if (match != null) {
+        final priceString = match.group(1);
+        return double.parse(priceString!);
+      }
+
+      return 0.0;
+    } catch (e) {
+      print('❌ Error extracting price from details: $e');
+      return 0.0;
+    }
+  }
   // Helper method to parse service category name
   static String _parseServiceCategory(Map<String, dynamic> json) {
     if (json['serviceCategory'] is String) {

@@ -50,6 +50,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
     _fetchAgents();
   }
 
+  // Simplified _fetchAgents method using ServiceMapper
   Future<void> _fetchAgents() async {
     try {
       setState(() {
@@ -59,22 +60,48 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
       print('🔄 Fetching agents for service: ${widget.serviceType}');
 
-      final agents = await _authService.getAvailableAgents(
-        serviceType: widget.serviceType,
+      // Get all available agents for the service category
+      final allAgents = await _authService.getAvailableAgents(
+        serviceType: ServiceMapper.isBabysittingService(widget.serviceType)
+            ? 'babysitting' // Use general babysitting category for API call
+            : widget.serviceType,
       );
 
-      print('✅ Loaded ${agents.length} agents');
+      print('✅ Loaded ${allAgents.length} total agents');
 
-      if (agents.isNotEmpty) {
-        print('🔍 FIRST AGENT DEBUG:');
-        print('   - agent.id: ${agents[0].id}');
-        print('   - agent.userId: ${agents[0].userId}');
-        print('   - agent.fullName: ${agents[0].fullName}');
-        print('   - agent.serviceType: ${agents[0].serviceType}');
+      // Filter agents based on babysitting type if applicable
+      List<Agent> filteredAgents = allAgents;
+
+      if (ServiceMapper.isBabysittingService(widget.serviceType)) {
+        final babysittingType = ServiceMapper.getBabysittingType(widget.serviceType);
+
+        if (babysittingType == 'child') {
+          filteredAgents = allAgents.where((agent) {
+            return agent.subCategory?.toLowerCase().contains('child') == true ||
+                agent.servicesOffered.toLowerCase().contains('child') ||
+                agent.bio.toLowerCase().contains('child') ||
+                agent.displayName.toLowerCase().contains('child') ||
+                (agent.subCategory == null && agent.servicesOffered.isEmpty);
+          }).toList();
+          print('👶 Found ${filteredAgents.length} child babysitters');
+
+        } else if (babysittingType == 'animal') {
+          filteredAgents = allAgents.where((agent) {
+            return agent.subCategory?.toLowerCase().contains('pet') == true ||
+                agent.subCategory?.toLowerCase().contains('animal') == true ||
+                agent.servicesOffered.toLowerCase().contains('pet') ||
+                agent.servicesOffered.toLowerCase().contains('animal') ||
+                agent.bio.toLowerCase().contains('pet') ||
+                agent.bio.toLowerCase().contains('animal') ||
+                agent.displayName.toLowerCase().contains('pet') ||
+                agent.displayName.toLowerCase().contains('animal');
+          }).toList();
+          print('🐾 Found ${filteredAgents.length} pet babysitters');
+        }
       }
 
       setState(() {
-        _agents = agents;
+        _agents = filteredAgents;
         _isLoading = false;
       });
     } catch (e) {
@@ -85,9 +112,10 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       });
     }
   }
-
   String get _displayTitle {
     switch (widget.serviceType.toLowerCase()) {
+      case 'child_babysitting': return 'Select Childcare Specialist';
+      case 'animal_babysitting': return 'Select Pet Care Specialist';
       case 'errand': return 'Select Errand Agent';
       case 'delivery': return 'Select Delivery Agent';
       case 'movers': return 'Select Moving Agent';

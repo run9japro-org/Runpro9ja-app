@@ -713,6 +713,63 @@ class BookingSummaryScreen extends StatelessWidget {
     final totalAmount = orderData['totalAmount'] ?? 0.0;
     final estimatedHours = orderData['estimatedHours'] ?? 4.0;
 
+    // Add this method to the BookingSummaryScreen class
+    void _proceedToPayment(BuildContext context) {
+      try {
+        print('🎯 Proceeding to payment...');
+        print('📦 Order Data: $orderData');
+        print('👤 Selected Agent: ${selectedAgent.displayName}');
+        print('💰 Amount: ${orderData['totalAmount']}');
+        print('🎯 Service Type: $serviceType');
+
+        // You need to get the actual order ID from your order creation
+        // For now, we'll create a temporary order ID
+        final orderId = orderData['orderId'] ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+
+        // Ensure the agent ID is available
+        final agentId = selectedAgent.userId;
+
+        if (agentId.isEmpty) {
+          print('❌ Agent ID is empty!');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Agent information is incomplete. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // Get the amount
+        final amount = (orderData['totalAmount'] ?? 0.0).toDouble();
+
+        print('🚀 Navigating to PaymentScreen:');
+        print('   - Order ID: $orderId');
+        print('   - Agent ID: $agentId');
+        print('   - Amount: $amount');
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PaymentScreen(
+              orderId: orderId,
+              amount: amount,
+              agentId: agentId,
+            ),
+          ),
+        );
+      } catch (e, stackTrace) {
+        print('❌ Error navigating to payment: $e');
+        print('📋 Stack trace: $stackTrace');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting payment: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -923,7 +980,7 @@ class BookingSummaryScreen extends StatelessWidget {
               ),
             ),
 
-            // Proceed to Payment Button
+            // In BookingSummaryScreen, update the payment button:
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -950,6 +1007,7 @@ class BookingSummaryScreen extends StatelessWidget {
                     shadowColor: Colors.green.withOpacity(0.3),
                   ),
                   onPressed: () {
+                    _proceedToPayment(context);
                   },
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,

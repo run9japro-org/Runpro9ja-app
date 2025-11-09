@@ -601,76 +601,166 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
   }
 
 // ✅ NEW METHOD: Extract payment data properly
+  // ✅ UPDATED METHOD: Include all required payment data
+  // ✅ ULTRA-SIMPLE METHOD: Just navigate to payment
+  // ===== STEP 1: Update OrderConfirmationScreen._proceedToPayment =====
+
   void _proceedToPayment() {
     if (_orderDetails == null) {
       _showError('Order details not available');
       return;
     }
 
-    // **PRIORITY ORDER for getting agent ID:**
-    // 1. From orderData (stored during order creation)
-    // 2. From orderDetails.agent map
-    // 3. From orderDetails.assignedAgent
-    String agentId = '';
-    String agentName = 'Agent';
+    print('');
+    print('💰 ===== PAYMENT PROCEDURE STARTED =====');
 
-    print('🔍 ===== EXTRACTING PAYMENT DATA =====');
+    // Extract agent ID with detailed logging
+    String agentId = _extractAgentIdWithDebug();
 
+    print('');
+    print('📊 FINAL PAYMENT DATA:');
+    print('   ├─ Order ID: "${_orderDetails!.id}"');
+    print('   ├─ Amount: ${_orderDetails!.price}');
+    print('   ├─ Agent ID: "$agentId"');
+    print('   ├─ Order Status: ${_orderDetails!.status}');
+    print('   ├─ Order ID Length: ${_orderDetails!.id.length}');
+    print('   ├─ Agent ID Length: ${agentId.length}');
+    print('   └─ Amount > 0: ${_orderDetails!.price > 0}');
+    print('');
+
+    // Validate all fields
+    final validationErrors = <String>[];
+
+    if (_orderDetails!.id.isEmpty) {
+      validationErrors.add('Order ID is empty');
+    }
+    if (_orderDetails!.id.startsWith('temp_')) {
+      validationErrors.add('Order ID is temporary');
+    }
+    if (_orderDetails!.id.length != 24) {
+      validationErrors.add('Order ID length is ${_orderDetails!.id.length}, expected 24');
+    }
+    if (agentId.isEmpty) {
+      validationErrors.add('Agent ID is empty');
+    }
+    if (agentId.length != 24) {
+      validationErrors.add('Agent ID length is ${agentId.length}, expected 24');
+    }
+    if (_orderDetails!.price <= 0) {
+      validationErrors.add('Amount is ${_orderDetails!.price}');
+    }
+
+    if (validationErrors.isNotEmpty) {
+      print('❌ VALIDATION ERRORS:');
+      for (var error in validationErrors) {
+        print('   ✗ $error');
+      }
+      print('');
+      _showError('Payment validation failed: ${validationErrors.first}');
+      return;
+    }
+
+    print('✅ ALL VALIDATIONS PASSED');
+    print('🚀 Navigating to PaymentScreen...');
+    print('========================================');
+    print('');
+
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            orderId: _orderDetails!.id,
+            amount: _orderDetails!.price,
+            agentId: agentId,
+          ),
+        ),
+      );
+    } catch (e, stackTrace) {
+      print('❌ NAVIGATION ERROR: $e');
+      print('Stack trace: $stackTrace');
+      _showError('Navigation failed: $e');
+    }
+  }
+
+// Enhanced agent ID extraction with debug
+  String _extractAgentIdWithDebug() {
+    print('');
+    print('🔍 EXTRACTING AGENT ID:');
+    print('   📦 widget.orderData keys: ${widget.orderData.keys.toList()}');
+
+    // Check all possible sources
+    if (widget.orderData['agentId'] != null) {
+      final id = widget.orderData['agentId'].toString();
+      print('   ✓ Found in orderData["agentId"]: "$id"');
+      return id;
+    }
+    print('   ✗ orderData["agentId"] is null');
+
+    if (widget.orderData['selectedAgentId'] != null) {
+      final id = widget.orderData['selectedAgentId'].toString();
+      print('   ✓ Found in orderData["selectedAgentId"]: "$id"');
+      return id;
+    }
+    print('   ✗ orderData["selectedAgentId"] is null');
+
+    if (_orderDetails!.agent != null) {
+      print('   📋 Checking _orderDetails.agent...');
+      try {
+        final agentMap = _orderDetails!.agent as Map<String, dynamic>;
+        print('   Agent map keys: ${agentMap.keys.toList()}');
+
+        if (agentMap['_id'] != null) {
+          final id = agentMap['_id'].toString();
+          print('   ✓ Found in agent["_id"]: "$id"');
+          return id;
+        }
+        if (agentMap['id'] != null) {
+          final id = agentMap['id'].toString();
+          print('   ✓ Found in agent["id"]: "$id"');
+          return id;
+        }
+        print('   ✗ No _id or id in agent map');
+      } catch (e) {
+        print('   ✗ Error reading agent map: $e');
+      }
+    } else {
+      print('   ✗ _orderDetails.agent is null');
+    }
+
+    if (_orderDetails!.assignedAgent != null && _orderDetails!.assignedAgent!.isNotEmpty) {
+      final id = _orderDetails!.assignedAgent!;
+      print('   ✓ Found in assignedAgent: "$id"');
+      return id;
+    }
+    print('   ✗ assignedAgent is null or empty');
+
+    print('   ❌ AGENT ID NOT FOUND ANYWHERE!');
+    return '';
+  }
+
+
+// Helper method to extract agent ID
+  String _extractAgentId() {
     // Try orderData first (most reliable)
     if (widget.orderData['agentId'] != null) {
-      agentId = widget.orderData['agentId'].toString();
-      agentName = widget.orderData['agentName']?.toString() ?? 'Agent';
-      print('✅ Using agentId from orderData: $agentId');
+      return widget.orderData['agentId'].toString();
     }
     // Try selectedAgentId
     else if (widget.orderData['selectedAgentId'] != null) {
-      agentId = widget.orderData['selectedAgentId'].toString();
-      print('✅ Using selectedAgentId from orderData: $agentId');
+      return widget.orderData['selectedAgentId'].toString();
     }
     // Try from order details agent map
     else if (_orderDetails!.agent != null) {
       final agentMap = _orderDetails!.agent as Map<String, dynamic>;
-      agentId = agentMap['_id']?.toString() ?? agentMap['id']?.toString() ?? '';
-      agentName = agentMap['name']?.toString() ?? 'Agent';
-      print('✅ Using agentId from orderDetails.agent: $agentId');
+      return agentMap['_id']?.toString() ?? agentMap['id']?.toString() ?? '';
     }
     // Try assignedAgent field
     else if (_orderDetails!.assignedAgent != null && _orderDetails!.assignedAgent!.isNotEmpty) {
-      agentId = _orderDetails!.assignedAgent!;
-      print('✅ Using assignedAgent: $agentId');
+      return _orderDetails!.assignedAgent!;
     }
 
-    print('💰 Payment Data:');
-    print('   - Order ID: ${_orderDetails!.id}');
-    print('   - Amount: ${_orderDetails!.price}');
-    print('   - Agent ID: $agentId');
-    print('   - Agent Name: $agentName');
-    print('====================================');
-
-    // Validate data before navigation
-    if (agentId.isEmpty) {
-      print('❌ ERROR: Agent ID is empty!');
-      _showError('Agent information not available. Please refresh and try again.');
-      return;
-    }
-
-    if (_orderDetails!.id.isEmpty || _orderDetails!.id.startsWith('temp_')) {
-      print('❌ ERROR: Invalid order ID!');
-      _showError('Invalid order ID. Please refresh and try again.');
-      return;
-    }
-
-    // Navigate to payment screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PaymentScreen(
-          orderId: _orderDetails!.id,
-          amount: _orderDetails!.price,
-          agentId: agentId,
-        ),
-      ),
-    );
+    return '';
   }
 
 // Helper method to show errors
