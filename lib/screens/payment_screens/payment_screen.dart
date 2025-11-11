@@ -29,6 +29,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _isLoading = true;
   bool _paymentInitialized = false;
   bool _paymentCompleted = false;
+  bool _isCancelling = false;
 
   @override
   void initState() {
@@ -251,7 +252,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
     );
   }
+
   Future<void> _cancelPayment() async {
+    if (_isCancelling) return;
+
+    setState(() {
+      _isCancelling = true;
+    });
+
     try {
       print('🚫 Cancelling payment for order: ${widget.orderId}');
 
@@ -278,6 +286,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } catch (e) {
       print('❌ Cancel payment error: $e');
       _showCancellationSuccess(); // Always allow user to exit
+    } finally {
+      setState(() {
+        _isCancelling = false;
+      });
     }
   }
 
@@ -300,9 +312,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Navigator.pop(context); // Close dialog
               Navigator.pushNamedAndRemoveUntil(
                 context,
-                '/home',
+                '/main',
                     (route) => false, // Clear entire stack
-              ); // Close payment screen
+              );
             },
             child: const Text('OK'),
           ),
@@ -311,41 +323,47 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  void _showCancellationError(String message) {
+  void _showExitConfirmation() {
+    if (_paymentCompleted) {
+      Navigator.pop(context);
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.error, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Cancellation Status'),
-          ],
-        ),
-        content: Text(message),
+        title: const Text('Cancel Payment?'),
+        content: const Text('Are you sure you want to cancel this payment? You can always restart the payment process later.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Try Again'),
+            child: const Text('Continue Payment'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Close payment screen
+              Navigator.pop(context); // Close confirmation dialog
+              _cancelPayment();
             },
-            child: const Text('Exit Anyway', style: TextStyle(color: Colors.red)),
+            child: _isCancelling
+                ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+                : const Text(
+              'Cancel Payment',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
     );
   }
 
-// Update the _showExitConfirmation method
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // canPop: false, // Prevent back button during payment
+      canPop: false, // Prevent back button during payment
       onPopInvoked: (didPop) {
         if (didPop) return;
         _showExitConfirmation();
@@ -357,8 +375,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
           foregroundColor: Colors.black87,
           elevation: 1,
           leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: _showExitConfirmation,
+            icon: _isCancelling
+                ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+                : const Icon(Icons.close),
+            onPressed: _isCancelling ? null : _showExitConfirmation,
           ),
         ),
         body: !_paymentInitialized
@@ -381,33 +405,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showExitConfirmation() {
-    if (_paymentCompleted) {
-      Navigator.pop(context);
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Payment?'),
-        content: const Text('Are you sure you want to cancel this payment?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Continue Payment'),
-          ),
-          TextButton(
-            onPressed: () {
-              _cancelPayment();
-            },
-            child: const Text('Cancel Payment', style: TextStyle(color: Colors.red)),
-          ),
-        ],
       ),
     );
   }
