@@ -1,16 +1,16 @@
-// screens/agent_selection_screen.dart - COMPLETE FIXED VERSION
+// screens/agent_selection_screen.dart - COMPLETE WITH RECOVERY
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import '../../auth/Auth_services/auth_service.dart';
 import '../../models/agent_model.dart';
 import '../../models/customer_models.dart';
 import '../../services/customer_services.dart';
+import '../../services/order_recovery_service.dart';
 import '../../utils/service_mapper.dart';
 import '../babysitting_services/babysitting_service.dart';
 import '../errand_services/movers_screen.dart';
 import '../errand_services/order_confirmation_screen.dart';
-import '../laundry_services/laundry_waiting_screen.dart'; // ADD THIS IMPORT
+import '../laundry_services/laundry_waiting_screen.dart';
 
 const kGreen = Color(0xFF2E7D32);
 
@@ -20,6 +20,7 @@ class AgentSelectionScreen extends StatefulWidget {
   final double orderAmount;
   final Widget? nextScreen;
   final Function(Agent, Map<String, dynamic>)? onAgentSelected;
+  final bool fromRecovery;
 
   const AgentSelectionScreen({
     super.key,
@@ -28,6 +29,7 @@ class AgentSelectionScreen extends StatefulWidget {
     required this.orderAmount,
     this.nextScreen,
     this.onAgentSelected,
+    this.fromRecovery = false,
   });
 
   @override
@@ -42,15 +44,36 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
   bool _isSubmitting = false;
   String _errorMessage = '';
   Agent? _selectedAgent;
+  bool _isRecoveredSession = false;
 
   @override
   void initState() {
     super.initState();
     _customerService = CustomerService(_authService);
+    _initializeScreen();
+  }
+
+  Future<void> _initializeScreen() async {
+    if (widget.fromRecovery) {
+      _isRecoveredSession = true;
+    }
+    await _saveCurrentProgress();
     _fetchAgents();
   }
 
-  // Simplified _fetchAgents method using ServiceMapper
+  Future<void> _saveCurrentProgress() async {
+    try {
+      await OrderRecoveryService.saveAgentSelectionProgress(
+        serviceType: widget.serviceType,
+        orderData: widget.orderData,
+        orderAmount: widget.orderAmount,
+        selectedAgent: _selectedAgent?.toJson(),
+      );
+    } catch (e) {
+      print('❌ Error saving agent selection progress: $e');
+    }
+  }
+
   Future<void> _fetchAgents() async {
     try {
       setState(() {
@@ -60,16 +83,14 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
       print('🔄 Fetching agents for service: ${widget.serviceType}');
 
-      // Get all available agents for the service category
       final allAgents = await _authService.getAvailableAgents(
         serviceType: ServiceMapper.isBabysittingService(widget.serviceType)
-            ? 'babysitting' // Use general babysitting category for API call
+            ? 'babysitting'
             : widget.serviceType,
       );
 
       print('✅ Loaded ${allAgents.length} total agents');
 
-      // Filter agents based on babysitting type if applicable
       List<Agent> filteredAgents = allAgents;
 
       if (ServiceMapper.isBabysittingService(widget.serviceType)) {
@@ -112,6 +133,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       });
     }
   }
+
   String get _displayTitle {
     switch (widget.serviceType.toLowerCase()) {
       case 'child_babysitting': return 'Select Childcare Specialist';
@@ -120,7 +142,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       case 'delivery': return 'Select Delivery Agent';
       case 'movers': return 'Select Moving Agent';
       case 'moving': return 'Select Moving Agent';
-      case 'grocery': return 'Select Shopping Agent';
+      case 'grocery': return 'Select Grocery Agent';
       case 'cleaning': return 'Select Cleaning Agent';
       case 'laundry': return 'Select Laundry Agent';
       case 'plumbing': return 'Select Plumbing Expert';
@@ -138,7 +160,7 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       appBar: _whiteAppBar(title: _displayTitle),
       body: Column(
         children: [
-          // Order Summary Header
+          if (_isRecoveredSession) _buildRecoveryBanner(),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -161,11 +183,19 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
                     fontSize: 16,
                   ),
                 ),
+                if (_isRecoveredSession) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '🔄 Recovered session - Continuing where you left off',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-
-          // Agents List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: kGreen))
@@ -175,9 +205,39 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
                 ? _buildEmptyState()
                 : _buildAgentsList(),
           ),
-
-          // Selected Agent & Proceed Button
           if (_selectedAgent != null) _buildSelectionFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecoveryBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      color: Colors.green.shade50,
+      child: Row(
+        children: [
+          Icon(Icons.autorenew, color: Colors.green.shade700, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Welcome back! Continuing your order from where you left off.',
+              style: TextStyle(
+                color: Colors.green.shade800,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, color: Colors.green.shade700, size: 16),
+            onPressed: () {
+              setState(() {
+                _isRecoveredSession = false;
+              });
+            },
+          ),
         ],
       ),
     );
@@ -386,19 +446,12 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
   }
 
   void _selectAgent(Agent agent) {
-    print('👤 Agent selected:');
-    print('   - Name: ${agent.displayName}');
-    print('   - User ID: ${agent.userId}');
-    print('   - Profile ID: ${agent.id}');
-    print('   - User ID Length: ${agent.userId.length}');
-    print('   - Is User ID Empty: ${agent.userId.isEmpty}');
-
+    print('👤 Agent selected: ${agent.displayName}');
     setState(() {
       _selectedAgent = agent;
     });
+    _saveCurrentProgress();
   }
-
-  // In agent_selection_screen.dart - FIXED _proceedWithAgent method
 
   Future<void> _proceedWithAgent() async {
     if (_selectedAgent == null) return;
@@ -406,30 +459,28 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
     try {
       setState(() => _isSubmitting = true);
 
-      // **CRITICAL: Store agent ID in orderData BEFORE creating order**
       final finalOrderData = {
         ...widget.orderData,
         'selectedAgent': _selectedAgent!.toJson(),
-        'selectedAgentId': _selectedAgent!.userId,  // ✅ ADD THIS
-        'selectedAgentName': _selectedAgent!.displayName,  // ✅ ADD THIS
+        'selectedAgentId': _selectedAgent!.userId,
+        'selectedAgentName': _selectedAgent!.displayName,
         'totalAmount': widget.orderAmount,
       };
 
-      print('🎯 ===== ORDER DATA DEBUG =====');
-      print('   - Selected Agent User ID: ${_selectedAgent!.userId}');
-      print('   - Selected Agent Name: ${_selectedAgent!.displayName}');
-      print('   - Order Amount: ${widget.orderAmount}');
-      print('====================================');
+      print('🎯 Creating order with agent: ${_selectedAgent!.displayName}');
 
-      // Handle callback navigation FIRST
+      // Handle callback navigation
       if (widget.onAgentSelected != null) {
-        print('🎯 Using custom callback for agent selection');
+        await OrderRecoveryService.clearAgentSelectionProgress();
+        await OrderRecoveryService.clearPendingOrder();
         widget.onAgentSelected!(_selectedAgent!, finalOrderData);
         return;
       }
 
       // Handle nextScreen navigation
       if (widget.nextScreen != null) {
+        await OrderRecoveryService.clearAgentSelectionProgress();
+        await OrderRecoveryService.clearPendingOrder();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => widget.nextScreen!),
@@ -439,41 +490,28 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
       // CREATE THE ORDER
       try {
-        print('📦 Creating order with selected agent...');
         final order = await _createOrderWithSelectedAgent();
 
-        print('✅ ORDER CREATED SUCCESSFULLY!');
-        print('   - Order ID: ${order.id}');
-        print('   - Status: ${order.status}');
-        print('   - Service: ${order.serviceCategory}');
-
-        // **CRITICAL: Store ALL necessary IDs**
         finalOrderData['orderId'] = order.id;
         finalOrderData['_id'] = order.id;
         finalOrderData['isTempOrder'] = false;
-
-        // ✅ ENSURE agent ID is in the data
         finalOrderData['agentId'] = _selectedAgent!.userId;
         finalOrderData['agentName'] = _selectedAgent!.displayName;
 
-        print('💾 Final Order Data:');
-        print('   - orderId: ${finalOrderData['orderId']}');
-        print('   - agentId: ${finalOrderData['agentId']}');
-        print('   - amount: ${finalOrderData['totalAmount']}');
-
         if (!mounted) return;
+
+        // CLEAR RECOVERY DATA
+        await OrderRecoveryService.clearAgentSelectionProgress();
+        await OrderRecoveryService.clearPendingOrder();
 
         _handleDefaultNavigation(finalOrderData, order);
 
       } catch (e) {
         print('❌ ERROR CREATING ORDER: $e');
-        print('📋 Stack trace: ${StackTrace.current}');
-
         if (mounted) {
           _showError('Failed to create order. Please try again.');
           setState(() => _isSubmitting = false);
         }
-        return;
       }
 
     } catch (e) {
@@ -488,76 +526,41 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
     }
   }
 
-  // **COMPLETELY FIXED: _handleDefaultNavigation method**
   void _handleDefaultNavigation(Map<String, dynamic> orderData, CustomerOrder? order) {
     final professionalServices = [
-      'plumbing',
-      'electrical',
-      'carpentry',
-      'painting',
-      'professional service'
+      'plumbing', 'electrical', 'carpentry', 'painting', 'professional service'
     ];
 
     final isProfessionalService = professionalServices.contains(widget.serviceType.toLowerCase());
-
-    print('🧭 NAVIGATION DEBUG:');
-    print('   - Service Type: "${widget.serviceType}"');
-    print('   - Service Type Lowercase: "${widget.serviceType.toLowerCase()}"');
-    print('   - Is Professional: $isProfessionalService');
-    print('   - Order Created: ${order != null}');
-    print('   - Order ID: ${order?.id}');
-    print('   - Selected Agent: ${_selectedAgent?.displayName}');
-
-    // **DEBUG: Check what service type is actually coming through**
-    print('🔍 SERVICE TYPE CHECK:');
-    print('   - Is "laundry": ${widget.serviceType.toLowerCase() == 'laundry'}');
-    print('   - Is "cleaning": ${widget.serviceType.toLowerCase() == 'cleaning'}');
-    print('   - Is "Laundry": ${widget.serviceType == 'Laundry'}');
-    print('   - Is "Laundry".toLowerCase(): ${widget.serviceType.toLowerCase() == 'laundry'}');
-
-    // **FIXED: Handle laundry service navigation - check both cases**
     final serviceTypeLower = widget.serviceType.toLowerCase();
 
-    if (serviceTypeLower == 'laundry') {
-      print('🧺 NAVIGATING TO LAUNDRY WAITING SCREEN');
-      if (order != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LaundryOrderWaitingScreen(
-              orderId: order.id,
-              selectedAgent: _selectedAgent!,
-              orderData: orderData,
-              customerOrder: order,
-            ),
-          ),
-        );
-      } else {
-        // Create a temporary order for navigation
-        final tempOrder = CustomerOrder(
-          id: orderData['orderId'] ?? 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          serviceCategory: 'laundry',
-          description: orderData['description'] ?? 'Laundry Service',
-          location: orderData['address'] ?? 'Not specified',
-          price: widget.orderAmount,
-          status: 'pending',
-          createdAt: DateTime.now(),
-          isPublic: false,
-          isDirectOffer: false,
-        );
+    print('🧭 Navigating for service: $serviceTypeLower');
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LaundryOrderWaitingScreen(
-              orderId: tempOrder.id,
-              selectedAgent: _selectedAgent!,
-              orderData: orderData,
-              customerOrder: tempOrder,
-            ),
+    if (serviceTypeLower == 'laundry') {
+      print('🧺 Navigating to LAUNDRY WAITING SCREEN');
+      final tempOrder = order ?? CustomerOrder(
+        id: orderData['orderId'] ?? 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        serviceCategory: 'laundry',
+        description: orderData['description'] ?? 'Laundry Service',
+        location: orderData['address'] ?? 'Not specified',
+        price: widget.orderAmount,
+        status: 'pending',
+        createdAt: DateTime.now(),
+        isPublic: false,
+        isDirectOffer: false,
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LaundryOrderWaitingScreen(
+            orderId: tempOrder.id,
+            selectedAgent: _selectedAgent!,
+            orderData: orderData,
+            customerOrder: tempOrder,
           ),
-        );
-      }
+        ),
+      );
       return;
     }
 
@@ -606,7 +609,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       return;
     }
 
-    // Handle other service types
     switch (serviceTypeLower) {
       case 'child_babysitting':
       case 'animal_babysitting':
@@ -658,19 +660,11 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
     }
   }
 
-  // **COMPLETELY FIXED: _createOrderWithSelectedAgent method**
   Future<CustomerOrder> _createOrderWithSelectedAgent() async {
     final agentId = _selectedAgent!.userId;
 
     try {
-      print('🎯 ===== AGENT ID VERIFICATION =====');
-      print('👤 AGENT IDS:');
-      print('   - agent.id (profile ID): ${_selectedAgent!.id}');
-      print('   - agent.userId (user ID): ${_selectedAgent!.userId}');
-      print('   - Using for requestedAgent: $agentId');
-      print('====================================');
-
-      print('🔍 RAW ORDER DATA: ${widget.orderData}');
+      print('🎯 Creating order with agent ID: $agentId');
 
       final serviceCategory = ServiceMapper.getCategoryId(widget.serviceType);
       final serviceCategoryName = ServiceMapper.getCategoryName(widget.serviceType);
@@ -700,14 +694,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
       final isMovingService = widget.serviceType.toLowerCase() == 'moving' ||
           widget.serviceType.toLowerCase() == 'movers';
       final isLaundryService = widget.serviceType.toLowerCase() == 'laundry';
-
-      print('🔧 Service Type Analysis:');
-      print('   - Professional: $isProfessionalService');
-      print('   - Delivery: $isDeliveryService');
-      print('   - Errand: $isErrandService');
-      print('   - Moving: $isMovingService');
-      print('   - Laundry: $isLaundryService');
-      print('   - Actual Service Type: ${widget.serviceType}');
 
       CustomerOrder order;
 
@@ -754,8 +740,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
           serviceScale: widget.orderData['serviceScale'] ?? 'minimum',
         );
 
-        print('📦 Professional order result type: ${orderResult.runtimeType}');
-
         if (orderResult is Map<String, dynamic> && orderResult['order'] != null) {
           order = CustomerOrder.fromJson(orderResult['order']);
         } else if (orderResult is Map<String, dynamic>) {
@@ -764,7 +748,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
           throw Exception('Invalid order response format: ${orderResult.runtimeType}');
         }
       } else {
-        // **FIXED: Handle laundry service order creation**
         if (isLaundryService) {
           print('🧺 Creating LAUNDRY order...');
           order = await _customerService.createErrandOrder(
@@ -790,7 +773,6 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
                 receiverPhone: widget.orderData['receiverPhone'],
                 specialInstructions: widget.orderData['specialInstructions'],
                 requestedAgentId: agentId,
-
               );
               break;
 
@@ -856,14 +838,10 @@ class _AgentSelectionScreenState extends State<AgentSelectionScreen> {
 
       print('✅ Order creation successful');
       print('   - Order ID: ${order.id}');
-      print('   - Agent ID Used: $agentId');
       return order;
 
     } catch (e) {
       print('❌ Error creating order: $e');
-      print('📋 Order Data that caused error: ${widget.orderData}');
-      print('🎯 Service Type: ${widget.serviceType}');
-      print('👤 Selected Agent User ID: ${_selectedAgent?.userId}');
       rethrow;
     }
   }
