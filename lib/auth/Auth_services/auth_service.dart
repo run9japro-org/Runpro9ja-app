@@ -194,7 +194,36 @@ class AuthService {
       return null;
     }
   }
+  Future<Map<String, dynamic>> delete(String path, Map<String, dynamic> data) async {
+    final token = await getToken();
+    final normalizedPath = path.startsWith("/") ? path : "/$path";
+    final url = Uri.parse('$baseUrl$normalizedPath');
 
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+
+    print("➡️ DELETE $url");
+    print("➡️ Headers: $headers");
+    print("➡️ Body: $data");
+
+    final res = await http.delete(
+      url,
+      headers: headers,
+      body: jsonEncode(data),
+    );
+
+    print("⬅️ Status: ${res.statusCode}");
+    print("⬅️ Response: ${res.body}");
+
+    final body = res.body.isNotEmpty ? jsonDecode(res.body) : {};
+
+    return {
+      'statusCode': res.statusCode,
+      'body': body,
+    };
+  }
   // Save token method
   Future<bool> saveToken(String token) async {
     try {

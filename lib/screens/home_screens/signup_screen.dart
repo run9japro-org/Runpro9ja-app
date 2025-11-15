@@ -97,10 +97,7 @@ class _SignupScreenState extends State<SignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, size: 20),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
+
                 const SizedBox(height: 10),
 
                 Text(

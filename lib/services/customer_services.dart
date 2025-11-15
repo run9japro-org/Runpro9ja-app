@@ -543,7 +543,7 @@ class CustomerService {
     required String clientName,
     required String generalLocation,
     required String serviceAddress,
-    required String date,
+    required String date, // This is in "dd/MM/yyyy" format
     required String startTime,
     required String endTime,
     required double totalAmount,
@@ -551,20 +551,38 @@ class CustomerService {
     String? organization,
     required String requestedAgentId,
   }) async {
-    final orderData = {
-      'serviceCategory': '68eab136001131897a342df5', // Personal Assistance category ID
-      'details': 'Personal Assistance: $specificRole - $category for $clientName',
-      'location': serviceAddress,
-      'pickup': serviceAddress,
-      'destination': serviceAddress,
-      'totalAmount': totalAmount,
-      'scheduledDate': date,
-      'scheduledTime': '$startTime - $endTime',
-      'status': 'pending_agent_response',
-      'requestedAgent': requestedAgentId,
-      'orderType': 'normal', // CRITICAL!
-      'urgency': 'standard',
-      'specialInstructions': '''
+    try {
+      print('🔄 Creating personal assistance order...');
+
+      // Parse the date from "dd/MM/yyyy" to ISO format
+      final dateParts = date.split('/');
+      if (dateParts.length != 3) {
+        throw Exception('Invalid date format. Please use DD/MM/YYYY');
+      }
+
+      final day = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final year = int.parse(dateParts[2]);
+
+      // Create proper ISO date string for the backend
+      final formattedDate = '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}T00:00:00.000Z';
+
+      print('📅 Date conversion: $date -> $formattedDate');
+
+      final orderData = {
+        'serviceCategory': '68eab136001131897a342df5', // Personal Assistance category ID
+        'details': 'Personal Assistance: $specificRole - $category for $clientName',
+        'location': serviceAddress,
+        'pickup': serviceAddress,
+        'destination': serviceAddress,
+        'totalAmount': totalAmount,
+        'scheduledDate': formattedDate, // Use the properly formatted date
+        'scheduledTime': '$startTime - $endTime',
+        'status': 'pending_agent_response',
+        'requestedAgent': requestedAgentId,
+        'orderType': 'normal', // CRITICAL!
+        'urgency': 'standard',
+        'specialInstructions': '''
 Category: $category
 Specific Role: $specificRole
 Client Name: $clientName
@@ -573,16 +591,18 @@ Date: $date
 Time: $startTime - $endTime
 Special Requirements: ${specialRequirements ?? 'None'}
 Organization: ${organization ?? 'Not specified'}
-    ''',
-      // Remove serviceType - backend uses serviceCategory
-    };
+      ''',
+      };
 
-    print('📦 Personal assistance order data: $orderData');
+      print('📦 Personal assistance order data: $orderData');
 
-    final result = await _createOrder(orderData);
-    return CustomerOrder.fromJson(result['order'] ?? result);
+      final result = await _createOrder(orderData);
+      return CustomerOrder.fromJson(result['order'] ?? result);
+    } catch (e) {
+      print('❌ Error in createPersonalAssistanceOrder: $e');
+      rethrow;
+    }
   }
-
 // UPDATE THE GENERIC ORDER CREATION TO ADD LOGGING
   Future<Map<String, dynamic>> _createOrder(
       Map<String, dynamic> orderData,

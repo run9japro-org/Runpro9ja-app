@@ -94,6 +94,184 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ADD DELETE ACCOUNT METHOD
+  Future<void> _deleteAccount() async {
+    final bool? confirmDelete = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Account',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This action cannot be undone. All your data will be permanently deleted.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'To confirm, please type:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'DELETE MY ACCOUNT',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: 'Type the confirmation phrase',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  // We'll handle validation in the button
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Continue', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == true) {
+      // Show password confirmation dialog
+      await _showPasswordConfirmationDialog();
+    }
+  }
+
+  // ADD PASSWORD CONFIRMATION DIALOG
+  Future<void> _showPasswordConfirmationDialog() async {
+    final TextEditingController passwordController = TextEditingController();
+    final TextEditingController confirmationController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Confirm Deletion',
+            style: TextStyle(color: Colors.red),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Please enter your password to confirm account deletion:'),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: confirmationController,
+                decoration: const InputDecoration(
+                  labelText: 'Type "DELETE MY ACCOUNT"',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (confirmationController.text != 'DELETE MY ACCOUNT') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please type "DELETE MY ACCOUNT" to confirm')),
+                  );
+                  return;
+                }
+
+                if (passwordController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter your password')),
+                  );
+                  return;
+                }
+
+                Navigator.of(context).pop();
+                await _performAccountDeletion(
+                  passwordController.text,
+                  confirmationController.text,
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ADD ACTUAL DELETION METHOD
+  Future<void> _performAccountDeletion(String password, String confirmation) async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Use AuthService to delete account
+      final authService = AuthService();
+      final response = await authService.delete('api/customers/me', {
+        'password': password,
+        'confirmation': confirmation,
+      });
+
+      Navigator.of(context).pop(); // Close loading dialog
+
+      if (response['statusCode'] == 200) {
+        // Account deleted successfully
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account deleted successfully')),
+        );
+
+        // Logout and navigate to login
+        await authService.logout();
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+      } else {
+        throw Exception(response['body']['message'] ?? 'Failed to delete account');
+      }
+    } catch (e) {
+      Navigator.of(context).pop(); // Close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete account: $e')),
+      );
+    }
+  }
+
   // Get recent order IDs for tracking
   List<String> getRecentOrderIds() {
     return _customerOrders
@@ -314,8 +492,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showunavailable(String feature){
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-      content: Text("No order yet ") ,
-      backgroundColor: const Color(0xFF2E7D32),
+        content: Text("No order yet ") ,
+        backgroundColor: const Color(0xFF2E7D32),
       ),
     );
   }
@@ -551,26 +729,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   _buildProfileOption(
-                    icon: Icons.description_outlined,
-                    title: 'Terms of Service',
-                    subtitle: 'Read our terms and conditions',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const TermsAndConditionsScreen()),
-                    )
+                      icon: Icons.description_outlined,
+                      title: 'Terms of Service',
+                      subtitle: 'Read our terms and conditions',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const TermsAndConditionsScreen()),
+                      )
                   ),
 
                   // Preferences Section
                   const SizedBox(height: 24),
                   _buildSectionHeader('Preferences'),
                   _buildProfileOption(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    subtitle: 'Manage your notification preferences',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const NotificationScreen()),
-                    )
+                      icon: Icons.notifications_outlined,
+                      title: 'Notifications',
+                      subtitle: 'Manage your notification preferences',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                      )
                   ),
                   _buildProfileOption(
                     icon: Icons.payment_outlined,
@@ -585,6 +763,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Account Section
                   const SizedBox(height: 24),
                   _buildSectionHeader('Account'),
+                  // ADD DELETE ACCOUNT OPTION
+                  _buildProfileOption(
+                    icon: Icons.delete_outline,
+                    title: 'Delete Account',
+                    subtitle: 'Permanently delete your account and data',
+                    isDelete: true,
+                    onTap: _deleteAccount,
+                  ),
                   _buildProfileOption(
                     icon: Icons.logout,
                     title: 'Log Out',
@@ -642,17 +828,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey,
-          ),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey,
         ),
-        );
-    }
+      ),
+    );
+  }
 
   Widget _buildProfileOption({
     required IconData icon,
@@ -660,7 +846,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String subtitle,
     required VoidCallback onTap,
     bool isLogout = false,
+    bool isDelete = false, // ADD THIS PARAMETER
   }) {
+    Color? iconColor;
+    Color? textColor;
+
+    if (isDelete) {
+      iconColor = Colors.red;
+      textColor = Colors.red;
+    } else if (isLogout) {
+      iconColor = Colors.red;
+      textColor = Colors.red;
+    } else {
+      iconColor = const Color(0xFF2E7D32);
+      textColor = Colors.black87;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
@@ -673,12 +874,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: isLogout ? Colors.red[50] : const Color(0xFF2E7D32).withOpacity(0.1),
+            color: (isDelete || isLogout) ? Colors.red[50] : const Color(0xFF2E7D32).withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
-            color: isLogout ? Colors.red : const Color(0xFF2E7D32),
+            color: iconColor,
             size: 20,
           ),
         ),
@@ -686,7 +887,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title,
           style: TextStyle(
             fontWeight: FontWeight.w500,
-            color: isLogout ? Colors.red : Colors.black87,
+            color: textColor,
           ),
         ),
         subtitle: Text(
@@ -698,7 +899,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: isLogout ? Colors.red : Colors.grey,
+          color: (isDelete || isLogout) ? Colors.red : Colors.grey,
         ),
         onTap: onTap,
       ),
